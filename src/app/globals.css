@@ -389,3 +389,36 @@ body {
   z-index: 3;
   animation: fadeIn 1s ease-out 2s both;
 }
+
+/* === MOBILE: show only total ARR === */
+@media (max-width: 768px) {
+  .dash-layout {
+    padding: 1.5rem;
+  }
+
+  .dash-left {
+    display: none;
+  }
+
+  .total-brand {
+    margin-bottom: 1rem;
+  }
+
+  .total-amount {
+    font-size: clamp(2.5rem, 12vw, 5rem);
+  }
+
+  .total-month-growth {
+    font-size: 1rem;
+  }
+
+  .dash-ticker {
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .dash-time {
+    bottom: 1rem;
+    left: 1rem;
+  }
+}
