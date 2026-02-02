@@ -45,25 +45,19 @@ const SplitFlapChar = memo(function SplitFlapChar({
   );
 });
 
-export default function SplitFlapDisplay({
-  value,
-  className,
-  style,
-}: SplitFlapDisplayProps) {
-  const prevValue = useRef(value);
-  const flipKeys = useRef<number[]>([]);
-
-  const chars = value.split("");
-  const prevChars = prevValue.current.split("");
-
+function computeFlipKeys(
+  chars: string[],
+  prevChars: string[],
+  prevFlipKeys: number[],
+): number[] {
   const newFlipKeys: number[] = new Array(chars.length).fill(0);
   const lengthDiff = chars.length - prevChars.length;
 
   for (let i = 0; i < chars.length; i++) {
     const prevIndex = i - lengthDiff;
     const prevFlipKey =
-      prevIndex >= 0 && prevIndex < flipKeys.current.length
-        ? flipKeys.current[prevIndex]
+      prevIndex >= 0 && prevIndex < prevFlipKeys.length
+        ? prevFlipKeys[prevIndex]
         : 0;
     const prevChar =
       prevIndex >= 0 && prevIndex < prevChars.length
@@ -73,8 +67,29 @@ export default function SplitFlapDisplay({
     newFlipKeys[i] = chars[i] !== prevChar ? prevFlipKey + 1 : prevFlipKey;
   }
 
-  flipKeys.current = newFlipKeys;
-  prevValue.current = value;
+  return newFlipKeys;
+}
+
+export default function SplitFlapDisplay({
+  value,
+  className,
+  style,
+}: SplitFlapDisplayProps) {
+  const prevValue = useRef(value);
+  const flipKeys = useRef<number[]>([]);
+
+  const chars = value.split("");
+  const newFlipKeys = computeFlipKeys(
+    chars,
+    prevValue.current.split(""),
+    flipKeys.current,
+  );
+
+  // Commit ref mutations after render, safe with concurrent mode
+  useEffect(() => {
+    flipKeys.current = newFlipKeys;
+    prevValue.current = value;
+  });
 
   return (
     <span className={`split-flap ${className ?? ""}`} style={style}>
