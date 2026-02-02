@@ -1,29 +1,60 @@
 import { NextResponse } from "next/server";
 import { get } from "@vercel/edge-config";
 
-const DEFAULT_CONFIG = { arr: 108000000, growth: 0.3, updatedAt: Date.now() };
+type ProductConfig = {
+  arr: number;
+  growth: number;
+  monthGrowth: number;
+  updatedAt: number;
+};
 
-// Read config from Edge Config
+type Config = {
+  lemlist: ProductConfig;
+  claap: ProductConfig;
+  taplio: ProductConfig;
+  tweethunter: ProductConfig;
+};
+
+const PRODUCTS = ["lemlist", "claap", "taplio", "tweethunter"] as const;
+
+const DEFAULT_CONFIG: Config = {
+  lemlist: { arr: 80000000, growth: 0.25, monthGrowth: 0, updatedAt: Date.now() },
+  claap: { arr: 5000000, growth: 0.4, monthGrowth: 0, updatedAt: Date.now() },
+  taplio: { arr: 3000000, growth: 0.3, monthGrowth: 0, updatedAt: Date.now() },
+  tweethunter: { arr: 2000000, growth: 0.3, monthGrowth: 0, updatedAt: Date.now() },
+};
+
 export async function GET() {
   try {
-    const arr = await get<number>("arr");
-    const growth = await get<number>("growth");
-    const updatedAt = await get<number>("updatedAt");
+    const config: Partial<Config> = {};
+    let hasData = false;
 
-    if (arr !== undefined && growth !== undefined && updatedAt !== undefined) {
-      return NextResponse.json({ arr, growth, updatedAt });
+    for (const product of PRODUCTS) {
+      const data = await get<ProductConfig>(product);
+      if (data) {
+        config[product] = data;
+        hasData = true;
+      }
+    }
+
+    if (hasData) {
+      // Fill missing products with defaults
+      for (const product of PRODUCTS) {
+        if (!config[product]) {
+          config[product] = DEFAULT_CONFIG[product];
+        }
+      }
+      return NextResponse.json(config);
     }
 
     return NextResponse.json(DEFAULT_CONFIG);
   } catch {
-    // Edge Config not set up yet, return defaults
     return NextResponse.json(DEFAULT_CONFIG);
   }
 }
 
-// Write config to Edge Config via Vercel REST API
 export async function POST(request: Request) {
-  const { arr, growth } = await request.json();
+  const body: Config = await request.json();
 
   const edgeConfigId = process.env.EDGE_CONFIG_ID;
   const vercelApiToken = process.env.VERCEL_API_TOKEN;
@@ -35,6 +66,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const now = Date.now();
+  const items = PRODUCTS.map((product) => ({
+    operation: "upsert" as const,
+    key: product,
+    value: {
+      arr: body[product].arr,
+      growth: body[product].growth,
+      monthGrowth: body[product].monthGrowth,
+      updatedAt: now,
+    },
+  }));
+
   const res = await fetch(
     `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items`,
     {
@@ -43,13 +86,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${vercelApiToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        items: [
-          { operation: "upsert", key: "arr", value: arr },
-          { operation: "upsert", key: "growth", value: growth },
-          { operation: "upsert", key: "updatedAt", value: Date.now() },
-        ],
-      }),
+      body: JSON.stringify({ items }),
     }
   );
 
