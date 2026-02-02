@@ -47,27 +47,23 @@ function useProductTicker(config: ProductConfig | null) {
   return current;
 }
 
-function formatARR(value: number): { whole: string; cents: string } {
-  const dollars = Math.floor(value);
-  const cents = Math.floor((value - dollars) * 100);
-  return {
-    whole: dollars.toLocaleString("en-US"),
-    cents: String(cents).padStart(2, "0"),
-  };
+function formatARR(value: number): string {
+  return Math.floor(value).toLocaleString("en-US");
 }
 
 function formatMonthGrowth(value: number): string {
   const abs = Math.abs(value);
   const sign = value >= 0 ? "+" : "-";
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}k`;
-  return `${sign}$${abs.toFixed(0)}`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${Math.floor(abs).toLocaleString("en-US")}`;
+  return `${sign}${abs.toFixed(0)}`;
 }
 
-function formatCompact(value: number): string {
-  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
-  if (value >= 1_000) return (value / 1_000).toFixed(1) + "k";
-  return value.toFixed(0);
+function formatMonthPercent(monthGrowth: number, arr: number): string {
+  if (arr === 0) return "";
+  const pct = (monthGrowth / arr) * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return `(${sign}${pct.toFixed(1)}%)`;
 }
 
 function growthColor(value: number): string {
@@ -80,42 +76,34 @@ function growthColor(value: number): string {
 function ProductCard({
   name,
   arr,
+  baseARR,
   monthGrowth,
-  perSecond,
   delay,
 }: {
   name: string;
   arr: number | null;
+  baseARR: number;
   monthGrowth: number;
-  perSecond: number;
   delay: number;
 }) {
   if (arr === null) return null;
-  const { whole, cents } = formatARR(arr);
 
   return (
     <div
       className="product-card"
       style={{ animationDelay: `${delay}s` }}
     >
-      <div className="product-header">
-        <span className="product-name">{name}</span>
-        <span className="product-per-sec">
-          +${perSecond.toFixed(2)}/s
-        </span>
-      </div>
+      <div className="product-name">{name}</div>
 
       <div className="product-arr">
-        <span className="product-dollar">$</span>
-        {whole}
-        <span className="product-cents">.{cents}</span>
+        ${formatARR(arr)}
       </div>
 
       <div
         className="product-growth"
         style={{ color: growthColor(monthGrowth) }}
       >
-        {formatMonthGrowth(monthGrowth)} this month
+        {formatMonthGrowth(monthGrowth)} {formatMonthPercent(monthGrowth, baseARR)}
       </div>
     </div>
   );
@@ -174,36 +162,21 @@ function ARRDashboard() {
   // Computed sums
   const taplioTHArr =
     (taplioARR ?? 0) + (tweethunterARR ?? 0);
+  const taplioTHBaseARR = config.taplio.arr + config.tweethunter.arr;
   const taplioTHMonthGrowth =
     config.taplio.monthGrowth + config.tweethunter.monthGrowth;
-  const taplioTHPerSec =
-    (config.taplio.arr * config.taplio.growth +
-      config.tweethunter.arr * config.tweethunter.growth) /
-    (365.25 * 24 * 3600);
 
   const totalARR =
     (lemlistARR ?? 0) +
     (claapARR ?? 0) +
     (taplioARR ?? 0) +
     (tweethunterARR ?? 0);
+  const totalBaseARR = PRODUCTS.reduce((sum, p) => sum + config[p].arr, 0);
   const totalMonthGrowth =
     config.lemlist.monthGrowth +
     config.claap.monthGrowth +
     config.taplio.monthGrowth +
     config.tweethunter.monthGrowth;
-  const totalPerSecond = PRODUCTS.reduce(
-    (sum, p) =>
-      sum + (config[p].arr * config[p].growth) / (365.25 * 24 * 3600),
-    0
-  );
-
-  const total = formatARR(totalARR);
-  const dailyRate = totalPerSecond * 86400;
-
-  const lemlistPerSec =
-    (config.lemlist.arr * config.lemlist.growth) / (365.25 * 24 * 3600);
-  const claapPerSec =
-    (config.claap.arr * config.claap.growth) / (365.25 * 24 * 3600);
 
   return (
     <div className="dash-wrapper">
@@ -229,24 +202,24 @@ function ARRDashboard() {
         {/* Left: product cards */}
         <div className="dash-left">
           <ProductCard
-            name="lemlist"
+            name="Sales Engagement"
             arr={lemlistARR}
+            baseARR={config.lemlist.arr}
             monthGrowth={config.lemlist.monthGrowth}
-            perSecond={lemlistPerSec}
             delay={0.3}
           />
           <ProductCard
-            name="Claap"
+            name="Conversation Intelligence"
             arr={claapARR}
+            baseARR={config.claap.arr}
             monthGrowth={config.claap.monthGrowth}
-            perSecond={claapPerSec}
             delay={0.5}
           />
           <ProductCard
-            name="Taplio & Tweet Hunter"
+            name="Social Selling"
             arr={taplioTHArr}
+            baseARR={taplioTHBaseARR}
             monthGrowth={taplioTHMonthGrowth}
-            perSecond={taplioTHPerSec}
             delay={0.7}
           />
         </div>
@@ -263,31 +236,14 @@ function ARRDashboard() {
             </div>
 
             <div className="total-amount total-amount-glow">
-              <span className="total-dollar">$</span>
-              {total.whole}
-              <span className="total-cents">.{total.cents}</span>
+              ${formatARR(totalARR)}
             </div>
 
             <div
               className="total-month-growth"
               style={{ color: growthColor(totalMonthGrowth) }}
             >
-              {formatMonthGrowth(totalMonthGrowth)} this month
-            </div>
-
-            <div className="total-metrics">
-              <div className="total-metric">
-                <span className="total-metric-value">
-                  +${formatCompact(dailyRate)}
-                </span>
-                <span className="total-metric-label">Per Day</span>
-              </div>
-              <div className="total-metric">
-                <span className="total-metric-value">
-                  +${totalPerSecond.toFixed(2)}
-                </span>
-                <span className="total-metric-label">Per Second</span>
-              </div>
+              {formatMonthGrowth(totalMonthGrowth)} {formatMonthPercent(totalMonthGrowth, totalBaseARR)}
             </div>
           </div>
         </div>
