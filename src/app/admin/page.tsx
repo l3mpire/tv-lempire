@@ -3,15 +3,43 @@
 import { useEffect, useState } from "react";
 
 export default function AdminPage() {
-  const [arr, setArr] = useState("108000000");
-  const [growth, setGrowth] = useState("0.30");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [arr, setArr] = useState("");
+  const [growth, setGrowth] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
+  // Load current config
   useEffect(() => {
-    setBaseUrl(window.location.origin);
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then((data) => {
+        setArr(String(data.arr));
+        setGrowth(String(data.growth));
+      });
   }, []);
 
-  const dashboardUrl = `${baseUrl}/?arr=${arr}&growth=${growth}`;
+  async function handleSave() {
+    setSaving(true);
+    setMessage("");
+
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        arr: Number(arr),
+        growth: Number(growth),
+      }),
+    });
+
+    if (res.ok) {
+      setMessage("Saved!");
+    } else {
+      const data = await res.json();
+      setMessage(`Error: ${JSON.stringify(data.error)}`);
+    }
+
+    setSaving(false);
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-8">
@@ -53,22 +81,27 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="mt-10 p-4 bg-zinc-900 border border-zinc-800 rounded">
-          <p className="text-zinc-400 text-sm mb-2">URL du dashboard :</p>
-          <code className="text-green-400 text-sm break-all block">
-            {dashboardUrl}
-          </code>
+        <div className="mt-8 flex items-center gap-4">
           <button
-            onClick={() => navigator.clipboard.writeText(dashboardUrl)}
-            className="mt-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded text-sm font-medium transition-colors"
           >
-            Copier le lien
+            {saving ? "Saving..." : "Save"}
           </button>
+          {message && (
+            <span className={message.startsWith("Error") ? "text-red-400 text-sm" : "text-green-400 text-sm"}>
+              {message}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-8 pt-8 border-t border-zinc-800">
           <a
-            href={dashboardUrl}
+            href="/"
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-3 px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-sm transition-colors inline-block"
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors inline-block"
           >
             Ouvrir le dashboard
           </a>
