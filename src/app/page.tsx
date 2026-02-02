@@ -207,6 +207,16 @@ function ARRDashboard() {
 
   return (
     <div className="dash-wrapper">
+      {/* Video background */}
+      <div className="dash-video-bg">
+        <iframe
+          src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
+          allow="autoplay"
+          className="dash-video-iframe"
+        />
+        <div className="dash-video-dim" />
+      </div>
+
       {/* Ambient background */}
       <div className="dash-bg">
         <div className="dash-orb dash-orb-1" />
