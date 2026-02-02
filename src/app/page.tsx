@@ -29,12 +29,10 @@ function useProductTicker(config: ProductConfig | null) {
   useEffect(() => {
     if (!config || config.arr === 0 || config.updatedAt === 0) return;
 
-    const dollarPerSecond =
-      (config.arr * config.growth) / (365.25 * 24 * 3600);
-
     const tick = () => {
       const c = configRef.current;
       if (!c) return;
+      const dollarPerSecond = (c.arr * c.growth) / (365.25 * 24 * 3600);
       const elapsed = (Date.now() - c.updatedAt) / 1000;
       setCurrent(c.arr + elapsed * dollarPerSecond);
     };
@@ -75,12 +73,14 @@ function growthColor(value: number): string {
 // ── Product card (left column) ──────────────────────────────
 function ProductCard({
   name,
+  logos,
   arr,
   baseARR,
   monthGrowth,
   delay,
 }: {
   name: string;
+  logos: string[];
   arr: number | null;
   baseARR: number;
   monthGrowth: number;
@@ -95,8 +95,15 @@ function ProductCard({
     >
       <div className="product-name">{name}</div>
 
-      <div className="product-arr">
-        ${formatARR(arr)}
+      <div className="product-arr-row">
+        <div className="product-arr">
+          ${formatARR(arr)}
+        </div>
+        <div className="product-logos">
+          {logos.map((src) => (
+            <img key={src} src={src} alt="" className="product-logo" />
+          ))}
+        </div>
       </div>
 
       <div
@@ -116,12 +123,14 @@ function ARRDashboard() {
 
   useEffect(() => {
     // Try localStorage first (local dev fallback), then API
-    const local = localStorage.getItem("arr-config");
-    if (local) {
-      try {
-        setConfig(JSON.parse(local));
-        return;
-      } catch { /* fall through to API */ }
+    if (typeof window !== "undefined") {
+      const local = localStorage.getItem("arr-config");
+      if (local) {
+        try {
+          setConfig(JSON.parse(local));
+          return;
+        } catch { /* fall through to API */ }
+      }
     }
     fetch("/api/config")
       .then((res) => res.json())
@@ -203,6 +212,7 @@ function ARRDashboard() {
         <div className="dash-left">
           <ProductCard
             name="Sales Engagement"
+            logos={["/logos/lemlist.svg"]}
             arr={lemlistARR}
             baseARR={config.lemlist.arr}
             monthGrowth={config.lemlist.monthGrowth}
@@ -210,6 +220,7 @@ function ARRDashboard() {
           />
           <ProductCard
             name="Conversation Intelligence"
+            logos={["/logos/claap.svg"]}
             arr={claapARR}
             baseARR={config.claap.arr}
             monthGrowth={config.claap.monthGrowth}
@@ -217,6 +228,7 @@ function ARRDashboard() {
           />
           <ProductCard
             name="Social Selling"
+            logos={["/logos/taplio.svg", "/logos/tweethunter.svg"]}
             arr={taplioTHArr}
             baseARR={taplioTHBaseARR}
             monthGrowth={taplioTHMonthGrowth}

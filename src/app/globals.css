@@ -235,11 +235,24 @@ body {
   animation: borderGlow 3s ease-in-out infinite;
 }
 
-.product-header {
+.product-arr-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  justify-content: space-between;
+}
+
+.product-logos {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.product-logo {
+  height: 32px;
+  width: auto;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .product-name {
@@ -249,13 +262,7 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.6);
-}
-
-.product-per-sec {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.65rem;
-  color: rgba(255,255,255,0.45);
-  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
 }
 
 .product-arr {
@@ -265,21 +272,6 @@ body {
   line-height: 1;
   color: white;
   font-variant-numeric: tabular-nums;
-}
-
-.product-dollar {
-  font-weight: 200;
-  color: var(--accent);
-  opacity: 0.7;
-  margin-right: 0.02em;
-}
-
-.product-cents {
-  font-weight: 300;
-  font-size: 0.4em;
-  color: rgba(255,255,255,0.45);
-  vertical-align: super;
-  margin-left: 0.05em;
 }
 
 .product-growth {
@@ -349,21 +341,6 @@ body {
   animation: pulseGlow 4s ease-in-out infinite;
 }
 
-.total-dollar {
-  font-weight: 200;
-  color: var(--accent);
-  opacity: 0.75;
-  margin-right: 0.02em;
-}
-
-.total-cents {
-  font-weight: 300;
-  font-size: 0.35em;
-  color: rgba(255,255,255,0.5);
-  vertical-align: super;
-  margin-left: 0.1em;
-}
-
 .total-month-growth {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
@@ -371,53 +348,6 @@ body {
   margin-top: 1.25rem;
   letter-spacing: 0.03em;
   animation: fadeInUp 1s ease-out 1s both;
-}
-
-.total-metrics {
-  display: flex;
-  gap: 2rem;
-  margin-top: 2.5rem;
-  animation: fadeInUp 1s ease-out 1.2s both;
-}
-
-.total-metric {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.8rem 1.5rem;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  position: relative;
-  overflow: hidden;
-}
-
-.total-metric::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
-  animation: borderGlow 3s ease-in-out infinite;
-}
-
-.total-metric-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 500;
-  font-size: 1rem;
-  color: var(--accent);
-}
-
-.total-metric-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 300;
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
 }
 
 /* === STATUS === */
