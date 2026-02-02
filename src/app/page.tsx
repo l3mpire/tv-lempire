@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
+import SplitFlapDisplay from "./SplitFlapDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,7 @@ function ProductCard({
 
       <div className="product-arr-row">
         <div className="product-arr">
-          ${formatARR(arr)}
+          <SplitFlapDisplay value={`$${formatARR(arr)}`} />
         </div>
         <div className="product-logos">
           {logos.map((src) => (
@@ -254,7 +255,7 @@ function ARRDashboard() {
             </div>
 
             <div className="total-amount total-amount-glow">
-              ${formatARR(totalARR)}
+              <SplitFlapDisplay value={`$${formatARR(totalARR)}`} />
             </div>
 
             <div
