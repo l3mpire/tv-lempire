@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { get } from "@vercel/edge-config";
 
-const DEFAULT_CONFIG = { arr: 108000000, growth: 0.3 };
+const DEFAULT_CONFIG = { arr: 108000000, growth: 0.3, updatedAt: Date.now() };
 
 // Read config from Edge Config
 export async function GET() {
   try {
     const arr = await get<number>("arr");
     const growth = await get<number>("growth");
+    const updatedAt = await get<number>("updatedAt");
 
-    if (arr !== undefined && growth !== undefined) {
-      return NextResponse.json({ arr, growth });
+    if (arr !== undefined && growth !== undefined && updatedAt !== undefined) {
+      return NextResponse.json({ arr, growth, updatedAt });
     }
 
     return NextResponse.json(DEFAULT_CONFIG);
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
         items: [
           { operation: "upsert", key: "arr", value: arr },
           { operation: "upsert", key: "growth", value: growth },
+          { operation: "upsert", key: "updatedAt", value: Date.now() },
         ],
       }),
     }
