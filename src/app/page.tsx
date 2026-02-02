@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +120,10 @@ function ProductCard({
 function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
   const [time, setTime] = useState("");
+  const showVideo = useMemo(() => {
+    if (typeof window === "undefined") return true;
+    return !new URLSearchParams(window.location.search).has("novideo");
+  }, []);
 
   useEffect(() => {
     // Try localStorage first (local dev fallback), then API
@@ -190,14 +194,16 @@ function ARRDashboard() {
   return (
     <div className="dash-wrapper">
       {/* Video background */}
-      <div className="dash-video-bg">
-        <iframe
-          src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
-          allow="autoplay"
-          className="dash-video-iframe"
-        />
-        <div className="dash-video-dim" />
-      </div>
+      {showVideo && (
+        <div className="dash-video-bg">
+          <iframe
+            src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
+            allow="autoplay"
+            className="dash-video-iframe"
+          />
+          <div className="dash-video-dim" />
+        </div>
+      )}
 
       {/* Ambient background */}
       <div className="dash-bg">
