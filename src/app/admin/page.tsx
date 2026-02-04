@@ -97,7 +97,7 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold">ARR Dashboard - Debug View</h1>
           <div className="flex items-center gap-4">
             <span className="text-zinc-500 text-sm">
-              Last fetch: {lastFetch?.toLocaleTimeString()}
+              Loaded: {lastFetch?.toLocaleTimeString()}
             </span>
             <button
               onClick={fetchData}
