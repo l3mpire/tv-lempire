@@ -4,6 +4,9 @@ const HOLISTICS_HOST = process.env.HOLISTICS_HOST || "https://eu.holistics.io";
 const HOLISTICS_API_KEY = process.env.HOLISTICS_API_KEY;
 const HOLISTICS_REPORT_ID = process.env.HOLISTICS_REPORT_ID || "2199023346927";
 
+const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
+const FALLBACK_GROWTH_RATE = 0.15;
+
 type HolisticsQueryResult = {
   status: "success" | "failure" | "running";
   values?: (string | null)[][];
@@ -11,8 +14,15 @@ type HolisticsQueryResult = {
   error?: string;
 };
 
+type ProductConfig = {
+  arr: number;
+  growth: number;
+  monthGrowth: number;
+  updatedAt: number;
+};
+
 // This endpoint is called by Vercel Cron every 6 hours
-// It pre-warms the Holistics cache so dashboard loads are fast
+// It fetches data from Holistics and stores it in Edge Config
 export async function GET(request: Request) {
   // Verify this is a legitimate cron request (Vercel adds this header)
   const authHeader = request.headers.get("authorization");
@@ -26,6 +36,16 @@ export async function GET(request: Request) {
   if (!HOLISTICS_API_KEY) {
     return NextResponse.json(
       { error: "HOLISTICS_API_KEY not configured" },
+      { status: 500 }
+    );
+  }
+
+  const edgeConfigId = process.env.EDGE_CONFIG_ID;
+  const vercelApiToken = process.env.VERCEL_API_TOKEN;
+
+  if (!edgeConfigId || !vercelApiToken) {
+    return NextResponse.json(
+      { error: "Edge Config not configured (missing EDGE_CONFIG_ID or VERCEL_API_TOKEN)" },
       { status: 500 }
     );
   }
@@ -77,23 +97,101 @@ export async function GET(request: Request) {
       throw new Error("Invalid response format");
     }
 
-    // Fetch all pages to warm the cache
+    // Fetch last pages to get recent data
+    const allValues = [...result.values];
     const totalPages = result.paginated.num_pages;
-    console.log(`[Cron] Fetching ${totalPages} pages to warm cache...`);
+    console.log(`[Cron] Fetching last pages (${totalPages} total)...`);
 
-    for (let page = 2; page <= totalPages; page++) {
-      await fetch(
+    for (let page = Math.max(2, totalPages - 2); page <= totalPages; page++) {
+      const pageRes = await fetch(
         `${HOLISTICS_HOST}/queries/get_query_results.json?job_id=${job_id}&_page=${page}`,
         { headers: { "X-Holistics-Key": HOLISTICS_API_KEY } }
       );
+      if (pageRes.ok) {
+        const pageData: HolisticsQueryResult = await pageRes.json();
+        if (pageData.values) allValues.push(...pageData.values);
+      }
+    }
+
+    // Parse: Map<month, Map<product, arr>>
+    const arrByMonth = new Map<string, Map<string, number>>();
+    for (const [date, product, arrStr] of allValues) {
+      if (!date || !product || !arrStr) continue;
+      const month = date.substring(0, 7);
+      if (!arrByMonth.has(month)) arrByMonth.set(month, new Map());
+      arrByMonth.get(month)!.set(product, parseFloat(arrStr));
+    }
+
+    const months = Array.from(arrByMonth.keys()).sort();
+    const currentMonth = months[months.length - 1];
+    const previousMonth = months[months.length - 2];
+    const currentData = arrByMonth.get(currentMonth);
+    const previousData = arrByMonth.get(previousMonth);
+
+    if (!currentData) {
+      throw new Error("No current month data found");
+    }
+
+    console.log(`[Cron] Processing data: ${currentMonth} vs ${previousMonth}`);
+
+    // Build config for each product
+    const now = Date.now();
+    const items: { operation: "upsert"; key: string; value: ProductConfig }[] = [];
+
+    for (const product of PRODUCTS) {
+      const arr = currentData.get(product) || 0;
+      const prevArr = previousData?.get(product) || 0;
+      const monthGrowth = arr - prevArr;
+
+      // Calculate annual growth rate from month-over-month change
+      let growth = FALLBACK_GROWTH_RATE;
+      if (prevArr > 0) {
+        const monthlyRate = monthGrowth / prevArr;
+        growth = Math.pow(1 + monthlyRate, 12) - 1;
+        growth = Math.max(0, Math.min(2, growth)); // Clamp 0-200%
+      }
+
+      items.push({
+        operation: "upsert",
+        key: product,
+        value: {
+          arr: Math.round(arr * 100) / 100,
+          growth: Math.round(growth * 1000) / 1000,
+          monthGrowth: Math.round(monthGrowth * 100) / 100,
+          updatedAt: now,
+        },
+      });
+
+      console.log(`[Cron] ${product}: $${arr.toFixed(0)} (growth: ${(growth * 100).toFixed(1)}%)`);
+    }
+
+    // Store in Edge Config
+    console.log("[Cron] Saving to Edge Config...");
+    const edgeRes = await fetch(
+      `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${vercelApiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ items }),
+      }
+    );
+
+    if (!edgeRes.ok) {
+      const error = await edgeRes.json();
+      throw new Error(`Failed to save to Edge Config: ${JSON.stringify(error)}`);
     }
 
     console.log("[Cron] Holistics data refresh completed successfully");
 
     return NextResponse.json({
       success: true,
-      message: "Holistics data refreshed",
-      pages: totalPages,
+      message: "Holistics data saved to Edge Config",
+      currentMonth,
+      previousMonth,
+      products: items.map((i) => ({ key: i.key, arr: i.value.arr, monthGrowth: i.value.monthGrowth })),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
