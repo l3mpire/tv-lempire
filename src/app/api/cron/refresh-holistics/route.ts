@@ -21,15 +21,32 @@ type ProductConfig = {
   updatedAt: number;
 };
 
-// This endpoint is called by Vercel Cron every 6 hours
+// This endpoint is called by Vercel Cron or manually from /admin
 // It fetches data from Holistics and stores it in Edge Config
 export async function GET(request: Request) {
-  // Verify this is a legitimate cron request (Vercel adds this header)
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
-  // In production, verify the cron secret if set
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Allow access if:
+  // 1. CRON_SECRET matches (for Vercel Cron)
+  // 2. Basic Auth matches admin password (for manual refresh from /admin)
+  let authorized = false;
+
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    authorized = true;
+  }
+
+  if (adminPassword && authHeader?.startsWith("Basic ")) {
+    const base64 = authHeader.slice(6);
+    const decoded = Buffer.from(base64, "base64").toString();
+    const [, password] = decoded.split(":");
+    if (password === adminPassword) {
+      authorized = true;
+    }
+  }
+
+  if (cronSecret && adminPassword && !authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
