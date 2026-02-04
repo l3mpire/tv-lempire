@@ -14,12 +14,14 @@ type ProductConfig = {
 
 type Config = {
   lemlist: ProductConfig;
+  lemwarm: ProductConfig;
+  lemcal: ProductConfig;
   claap: ProductConfig;
   taplio: ProductConfig;
   tweethunter: ProductConfig;
 };
 
-const PRODUCTS = ["lemlist", "claap", "taplio", "tweethunter"] as const;
+const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 type ProductKey = (typeof PRODUCTS)[number];
 
 function useProductTicker(config: ProductConfig | null) {
@@ -58,11 +60,20 @@ function formatMonthGrowth(value: number): string {
   return `${sign}${abs.toFixed(0)}`;
 }
 
-function formatMonthPercent(monthGrowth: number, arr: number): string {
-  if (arr === 0) return "";
-  const pct = (monthGrowth / arr) * 100;
-  const sign = pct >= 0 ? "+" : "";
-  return `(${sign}${pct.toFixed(1)}%)`;
+function formatGrowthLine(monthGrowth: number, baseARR: number): string {
+  if (baseARR === 0) return "";
+
+  // MoM = monthGrowth / previous month ARR (baseARR - monthGrowth)
+  const prevARR = baseARR - monthGrowth;
+  const mom = prevARR > 0 ? (monthGrowth / prevARR) * 100 : 0;
+
+  // YoY = annualized from MoM: (1 + mom%)^12 - 1
+  const yoy = (Math.pow(1 + mom / 100, 12) - 1) * 100;
+
+  const momSign = mom >= 0 ? "+" : "";
+  const yoySign = yoy >= 0 ? "+" : "";
+
+  return `(${momSign}${mom.toFixed(1)}% MoM · ${yoySign}${yoy.toFixed(0)}% YoY)`;
 }
 
 function growthColor(value: number): string {
@@ -111,7 +122,56 @@ function ProductCard({
         className="product-growth"
         style={{ color: growthColor(monthGrowth) }}
       >
-        {formatMonthGrowth(monthGrowth)} {formatMonthPercent(monthGrowth, baseARR)}
+        {formatMonthGrowth(monthGrowth)} {formatGrowthLine(monthGrowth, baseARR)}
+      </div>
+    </div>
+  );
+}
+
+// ── Help popup ──────────────────────────────────────────────
+function HelpPopup({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="help-overlay" onClick={onClose}>
+      <div className="help-popup" onClick={(e) => e.stopPropagation()}>
+        <button className="help-close" onClick={onClose}>×</button>
+        <h2>How to read this dashboard</h2>
+
+        <div className="help-section">
+          <h3>ARR (Annual Recurring Revenue)</h3>
+          <p>
+            The main amount displayed is the current ARR, calculated in real-time.
+            It increments every second based on the expected annual growth rate.
+          </p>
+        </div>
+
+        <div className="help-section">
+          <h3>Monthly Growth</h3>
+          <p>
+            <span className="help-green">+311,148</span> = ARR difference vs previous month
+          </p>
+          <p>
+            <strong>MoM</strong> = Month-over-Month growth rate (current vs previous month)
+          </p>
+          <p>
+            <strong>YoY</strong> = Annualized growth if MoM rate continues for 12 months
+          </p>
+        </div>
+
+        <div className="help-section">
+          <h3>Data Source</h3>
+          <p>
+            Data is fetched from <strong>Holistics.io</strong>.
+          </p>
+        </div>
+
+        <div className="help-section">
+          <h3>Product Groups</h3>
+          <ul>
+            <li><strong>Sales Engagement</strong> = lemlist + lemwarm + lemcal</li>
+            <li><strong>Conversation Intelligence</strong> = Claap</li>
+            <li><strong>Social Selling</strong> = Taplio + Tweet Hunter</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
@@ -121,6 +181,7 @@ function ProductCard({
 function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
   const [time, setTime] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
   const showVideo = useMemo(() => {
     if (typeof window === "undefined") return true;
     return !new URLSearchParams(window.location.search).has("novideo");
@@ -144,6 +205,8 @@ function ARRDashboard() {
 
   // Individual tickers
   const lemlistARR = useProductTicker(config?.lemlist ?? null);
+  const lemwarmARR = useProductTicker(config?.lemwarm ?? null);
+  const lemcalARR = useProductTicker(config?.lemcal ?? null);
   const claapARR = useProductTicker(config?.claap ?? null);
   const taplioARR = useProductTicker(config?.taplio ?? null);
   const tweethunterARR = useProductTicker(config?.tweethunter ?? null);
@@ -173,24 +236,31 @@ function ARRDashboard() {
     );
   }
 
-  // Computed sums
-  const taplioTHArr =
+  // Computed sums - Sales Engagement (lemlist + lemwarm + lemcal)
+  const salesEngagementARR =
+    (lemlistARR ?? 0) + (lemwarmARR ?? 0) + (lemcalARR ?? 0);
+  const salesEngagementBaseARR =
+    config.lemlist.arr + config.lemwarm.arr + config.lemcal.arr;
+  const salesEngagementMonthGrowth =
+    config.lemlist.monthGrowth + config.lemwarm.monthGrowth + config.lemcal.monthGrowth;
+
+  // Social Selling (taplio + tweethunter)
+  const socialSellingARR =
     (taplioARR ?? 0) + (tweethunterARR ?? 0);
-  const taplioTHBaseARR = config.taplio.arr + config.tweethunter.arr;
-  const taplioTHMonthGrowth =
+  const socialSellingBaseARR = config.taplio.arr + config.tweethunter.arr;
+  const socialSellingMonthGrowth =
     config.taplio.monthGrowth + config.tweethunter.monthGrowth;
 
+  // Total (all 6 products)
   const totalARR =
     (lemlistARR ?? 0) +
+    (lemwarmARR ?? 0) +
+    (lemcalARR ?? 0) +
     (claapARR ?? 0) +
     (taplioARR ?? 0) +
     (tweethunterARR ?? 0);
   const totalBaseARR = PRODUCTS.reduce((sum, p) => sum + config[p].arr, 0);
-  const totalMonthGrowth =
-    config.lemlist.monthGrowth +
-    config.claap.monthGrowth +
-    config.taplio.monthGrowth +
-    config.tweethunter.monthGrowth;
+  const totalMonthGrowth = PRODUCTS.reduce((sum, p) => sum + config[p].monthGrowth, 0);
 
   return (
     <div className="dash-wrapper">
@@ -219,10 +289,10 @@ function ARRDashboard() {
         <div className="dash-left">
           <ProductCard
             name="Sales Engagement"
-            logos={["/logos/lemlist.svg"]}
-            arr={lemlistARR}
-            baseARR={config.lemlist.arr}
-            monthGrowth={config.lemlist.monthGrowth}
+            logos={["/logos/lemlist.svg", "/logos/lemwarm.svg", "/logos/lemcal.svg"]}
+            arr={salesEngagementARR}
+            baseARR={salesEngagementBaseARR}
+            monthGrowth={salesEngagementMonthGrowth}
             delay={0.3}
           />
           <ProductCard
@@ -236,9 +306,9 @@ function ARRDashboard() {
           <ProductCard
             name="Social Selling"
             logos={["/logos/taplio.svg", "/logos/tweethunter.svg"]}
-            arr={taplioTHArr}
-            baseARR={taplioTHBaseARR}
-            monthGrowth={taplioTHMonthGrowth}
+            arr={socialSellingARR}
+            baseARR={socialSellingBaseARR}
+            monthGrowth={socialSellingMonthGrowth}
             delay={0.7}
           />
         </div>
@@ -262,7 +332,7 @@ function ARRDashboard() {
               className="total-month-growth"
               style={{ color: growthColor(totalMonthGrowth) }}
             >
-              {formatMonthGrowth(totalMonthGrowth)} {formatMonthPercent(totalMonthGrowth, totalBaseARR)}
+              {formatMonthGrowth(totalMonthGrowth)} {formatGrowthLine(totalMonthGrowth, totalBaseARR)}
             </div>
           </div>
         </div>
@@ -272,8 +342,12 @@ function ARRDashboard() {
       <div className="dash-ticker">
         <span className="dash-ticker-dot" />
         <span className="dash-ticker-text">Live</span>
+        <button className="dash-help-btn" onClick={() => setShowHelp(true)}>?</button>
       </div>
       <div className="dash-time">{time}</div>
+
+      {/* Help popup */}
+      {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

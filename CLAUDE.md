@@ -20,7 +20,9 @@ src/
       page.tsx        # Interface admin (protégée par mot de passe) - config par produit
     api/
       config/
-        route.ts      # GET/POST: config multi-produit via Edge Config
+        route.ts      # GET/POST: config multi-produit (Holistics → Edge Config → defaults)
+      holistics/
+        route.ts      # GET: données ARR brutes depuis Holistics.io
   middleware.ts        # HTTP Basic Auth sur /admin
 ```
 
@@ -64,8 +66,17 @@ Un seul bouton "Save all" qui envoie la config complète.
 | `EDGE_CONFIG` | Connection string Edge Config (créée auto par Vercel) |
 | `EDGE_CONFIG_ID` | ID de l'Edge Config (format `ecfg_...`) |
 | `VERCEL_API_TOKEN` | Token API Vercel (pour écrire dans Edge Config) |
+| `HOLISTICS_API_KEY` | Clé API Holistics.io (optionnel) |
+| `HOLISTICS_HOST` | Host Holistics (défaut: `https://eu.holistics.io`) |
+| `HOLISTICS_REPORT_ID` | ID du rapport ARR breakdown (défaut: `2199023346927`) |
 
-En local, sans Edge Config configuré, l'API retourne des valeurs par défaut.
+## Sources de données (priorité)
+
+1. **Holistics.io** (si `HOLISTICS_API_KEY` configurée) - données ARR temps réel depuis le data warehouse
+2. **Edge Config** (si configurée) - valeurs saisies manuellement via `/admin`
+3. **Valeurs par défaut** - fallback hardcodé
+
+Voir `HOLISTICS_INTEGRATION.md` pour les détails de l'API Holistics.
 
 ## Règles importantes
 

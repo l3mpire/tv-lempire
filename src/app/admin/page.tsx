@@ -3,13 +3,25 @@
 import { useEffect, useState } from "react";
 
 type ProductConfig = {
-  arr: string;
-  growth: string;
-  monthGrowth: string;
+  arr: number;
+  growth: number;
+  monthGrowth: number;
+  updatedAt: number;
+};
+
+type Config = {
+  lemlist: ProductConfig;
+  lemwarm: ProductConfig;
+  lemcal: ProductConfig;
+  claap: ProductConfig;
+  taplio: ProductConfig;
+  tweethunter: ProductConfig;
 };
 
 const PRODUCTS = [
   { key: "lemlist", label: "lemlist" },
+  { key: "lemwarm", label: "lemwarm" },
+  { key: "lemcal", label: "lemcal" },
   { key: "claap", label: "Claap" },
   { key: "taplio", label: "Taplio" },
   { key: "tweethunter", label: "Tweet Hunter" },
@@ -17,201 +29,234 @@ const PRODUCTS = [
 
 type ProductKey = (typeof PRODUCTS)[number]["key"];
 
-const emptyProduct = (): ProductConfig => ({
-  arr: "",
-  growth: "",
-  monthGrowth: "0",
-});
+const GROUPS = [
+  {
+    name: "Sales Engagement",
+    products: ["lemlist", "lemwarm", "lemcal"] as ProductKey[],
+  },
+  {
+    name: "Conversation Intelligence",
+    products: ["claap"] as ProductKey[],
+  },
+  {
+    name: "Social Selling",
+    products: ["taplio", "tweethunter"] as ProductKey[],
+  },
+];
+
+function formatCurrency(value: number): string {
+  return "$" + Math.round(value).toLocaleString("en-US");
+}
+
+function formatPercent(value: number, decimals = 1): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(decimals)}%`;
+}
 
 export default function AdminPage() {
-  const [products, setProducts] = useState<Record<ProductKey, ProductConfig>>({
-    lemlist: emptyProduct(),
-    claap: emptyProduct(),
-    taplio: emptyProduct(),
-    tweethunter: emptyProduct(),
-  });
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [config, setConfig] = useState<Config | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/config");
+      const data = await res.json();
+      setConfig(data);
+      setLastFetch(new Date());
+    } catch (e) {
+      console.error("Failed to fetch config:", e);
+    }
+    setLoading(false);
+  }
 
   useEffect(() => {
-    fetch("/api/config")
-      .then((res) => res.json())
-      .then((data) => {
-        const loaded: Record<string, ProductConfig> = {};
-        for (const p of PRODUCTS) {
-          if (data[p.key]) {
-            loaded[p.key] = {
-              arr: String(data[p.key].arr),
-              growth: String(data[p.key].growth),
-              monthGrowth: String(data[p.key].monthGrowth ?? 0),
-            };
-          }
-        }
-        setProducts((prev) => ({ ...prev, ...loaded }));
-      });
+    fetchData();
   }, []);
 
-  function updateField(
-    key: ProductKey,
-    field: keyof ProductConfig,
-    value: string
-  ) {
-    setProducts((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], [field]: value },
-    }));
+  if (loading || !config) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+        <span className="text-zinc-500">Loading...</span>
+      </div>
+    );
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setMessage("");
-
-    const body: Record<string, { arr: number; growth: number; monthGrowth: number }> = {};
-    for (const p of PRODUCTS) {
-      body[p.key] = {
-        arr: Number(products[p.key].arr),
-        growth: Number(products[p.key].growth),
-        monthGrowth: Number(products[p.key].monthGrowth),
-      };
-    }
-
-    const res = await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (res.ok) {
-      setMessage("Saved!");
-    } else {
-      // Fallback: save to localStorage for local dev
-      const now = Date.now();
-      const localConfig: Record<string, unknown> = {};
-      for (const p of PRODUCTS) {
-        localConfig[p.key] = { ...body[p.key], updatedAt: now };
-      }
-      localStorage.setItem("arr-config", JSON.stringify(localConfig));
-      setMessage("Saved to localStorage (Edge Config not available)");
-    }
-
-    setSaving(false);
-  }
-
-  function formatPreview(key: ProductKey) {
-    const p = products[key];
-    const arr = Number(p.arr);
-    const growth = Number(p.growth);
-    const perSec = (arr * growth) / (365.25 * 24 * 3600);
-    return {
-      arrFormatted: "$" + arr.toLocaleString("en-US"),
-      yoy: (growth * 100).toFixed(0) + "% YoY",
-      perSec: "$" + perSec.toFixed(2) + "/sec",
-    };
-  }
+  // Calculate totals
+  const totalARR = PRODUCTS.reduce((sum, p) => sum + config[p.key].arr, 0);
+  const totalMonthGrowth = PRODUCTS.reduce((sum, p) => sum + config[p.key].monthGrowth, 0);
+  const totalPrevARR = totalARR - totalMonthGrowth;
+  const totalMoM = totalPrevARR > 0 ? (totalMonthGrowth / totalPrevARR) * 100 : 0;
+  const totalYoY = (Math.pow(1 + totalMoM / 100, 12) - 1) * 100;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-8">Admin - ARR Dashboard</h1>
+    <div className="fixed inset-0 bg-zinc-950 text-white p-8 overflow-y-auto">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold">ARR Dashboard - Debug View</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-zinc-500 text-sm">
+              Last fetch: {lastFetch?.toLocaleTimeString()}
+            </span>
+            <button
+              onClick={fetchData}
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
 
-        <div className="space-y-8">
-          {PRODUCTS.map((p) => {
-            const preview = formatPreview(p.key);
-            return (
-              <div
-                key={p.key}
-                className="border border-zinc-800 rounded-lg p-6"
-              >
-                <h2 className="text-lg font-semibold mb-4 text-zinc-200">
-                  {p.label}
-                </h2>
+        {/* TOTAL */}
+        <div className="border border-green-900 bg-green-950/30 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4 text-green-400">
+            Total lempire
+          </h2>
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <div className="text-3xl font-bold text-white mb-2">
+                {formatCurrency(totalARR)}
+              </div>
+              <div className="text-green-400 font-mono">
+                {formatCurrency(totalMonthGrowth)} ({formatPercent(totalMoM)} MoM · {formatPercent(totalYoY, 0)} YoY)
+              </div>
+            </div>
+            <div className="text-sm text-zinc-400 font-mono space-y-1">
+              <div>Current ARR: {formatCurrency(totalARR)}</div>
+              <div>Previous ARR: {formatCurrency(totalPrevARR)}</div>
+              <div>Month Growth: {formatCurrency(totalMonthGrowth)}</div>
+              <div>MoM: {totalMonthGrowth.toFixed(2)} / {totalPrevARR.toFixed(2)} = {formatPercent(totalMoM)}</div>
+              <div>YoY: (1 + {(totalMoM / 100).toFixed(4)})^12 - 1 = {formatPercent(totalYoY)}</div>
+            </div>
+          </div>
+        </div>
 
-                <div className="grid grid-cols-3 gap-4">
+        {/* GROUPS */}
+        {GROUPS.map((group) => {
+          const groupARR = group.products.reduce((sum, p) => sum + config[p].arr, 0);
+          const groupMonthGrowth = group.products.reduce((sum, p) => sum + config[p].monthGrowth, 0);
+          const groupPrevARR = groupARR - groupMonthGrowth;
+          const groupMoM = groupPrevARR > 0 ? (groupMonthGrowth / groupPrevARR) * 100 : 0;
+          const groupYoY = (Math.pow(1 + groupMoM / 100, 12) - 1) * 100;
+
+          return (
+            <div key={group.name} className="border border-zinc-800 rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-4 text-zinc-200">
+                {group.name}
+              </h2>
+
+              {/* Group total */}
+              <div className="bg-zinc-900/50 rounded p-4 mb-4">
+                <div className="flex justify-between items-start">
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">
-                      ARR ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={products[p.key].arr}
-                      onChange={(e) => updateField(p.key, "arr", e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-white focus:outline-none focus:border-green-500"
-                    />
-                    <p className="text-zinc-600 text-xs mt-1">
-                      {preview.arrFormatted}
-                    </p>
+                    <div className="text-xl font-bold text-white">
+                      {formatCurrency(groupARR)}
+                    </div>
+                    <div className="text-green-400 font-mono text-sm">
+                      {formatCurrency(groupMonthGrowth)} ({formatPercent(groupMoM)} MoM · {formatPercent(groupYoY, 0)} YoY)
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="block text-zinc-400 text-xs mb-1">
-                      Growth annuel
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={products[p.key].growth}
-                      onChange={(e) =>
-                        updateField(p.key, "growth", e.target.value)
-                      }
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-white focus:outline-none focus:border-green-500"
-                    />
-                    <p className="text-zinc-600 text-xs mt-1">
-                      {preview.yoy} &mdash; {preview.perSec}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-zinc-400 text-xs mb-1">
-                      Croissance mois ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={products[p.key].monthGrowth}
-                      onChange={(e) =>
-                        updateField(p.key, "monthGrowth", e.target.value)
-                      }
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-white focus:outline-none focus:border-green-500"
-                    />
-                    <p className="text-zinc-600 text-xs mt-1">
-                      {Number(products[p.key].monthGrowth) >= 0 ? "+" : ""}
-                      ${Number(products[p.key].monthGrowth).toLocaleString("en-US")}
-                    </p>
+                  <div className="text-xs text-zinc-500 font-mono text-right space-y-0.5">
+                    <div>Sum of: {group.products.join(" + ")}</div>
+                    <div>Prev: {formatCurrency(groupPrevARR)}</div>
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
 
-        <div className="mt-8 flex items-center gap-4">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-6 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded text-sm font-medium transition-colors"
-          >
-            {saving ? "Saving..." : "Save all"}
-          </button>
-          {message && (
-            <span
-              className={
-                message.startsWith("Error")
-                  ? "text-red-400 text-sm"
-                  : "text-green-400 text-sm"
-              }
-            >
-              {message}
-            </span>
-          )}
-        </div>
+              {/* Individual products */}
+              <div className="space-y-3">
+                {group.products.map((productKey) => {
+                  const p = config[productKey];
+                  const prevARR = p.arr - p.monthGrowth;
+                  const mom = prevARR > 0 ? (p.monthGrowth / prevARR) * 100 : 0;
+                  const yoy = (Math.pow(1 + mom / 100, 12) - 1) * 100;
+                  const perSec = (p.arr * p.growth) / (365.25 * 24 * 3600);
 
-        <div className="mt-8 pt-8 border-t border-zinc-800">
+                  const product = PRODUCTS.find((x) => x.key === productKey)!;
+
+                  return (
+                    <div
+                      key={productKey}
+                      className="border border-zinc-800 rounded p-4"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className="font-medium text-zinc-300">
+                            {product.label}
+                          </div>
+                          <div className="text-lg font-bold text-white">
+                            {formatCurrency(p.arr)}
+                          </div>
+                          <div
+                            className={`font-mono text-sm ${
+                              p.monthGrowth >= 0 ? "text-green-400" : "text-red-400"
+                            }`}
+                          >
+                            {formatCurrency(p.monthGrowth)} ({formatPercent(mom)} MoM · {formatPercent(yoy, 0)} YoY)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-900 rounded p-3 font-mono text-xs text-zinc-500 space-y-1">
+                        <div className="text-zinc-400 font-semibold mb-2">Calculation details:</div>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                          <div>Current ARR (Feb):</div>
+                          <div className="text-zinc-300">{formatCurrency(p.arr)}</div>
+
+                          <div>Previous ARR (Jan):</div>
+                          <div className="text-zinc-300">{formatCurrency(prevARR)}</div>
+
+                          <div>Month Growth:</div>
+                          <div className="text-zinc-300">
+                            {formatCurrency(p.arr)} - {formatCurrency(prevARR)} = {formatCurrency(p.monthGrowth)}
+                          </div>
+
+                          <div>MoM %:</div>
+                          <div className="text-zinc-300">
+                            {p.monthGrowth.toFixed(2)} / {prevARR.toFixed(2)} = {formatPercent(mom)}
+                          </div>
+
+                          <div>YoY % (annualized):</div>
+                          <div className="text-zinc-300">
+                            (1 + {(mom / 100).toFixed(4)})^12 - 1 = {formatPercent(yoy)}
+                          </div>
+
+                          <div>Ticker growth rate:</div>
+                          <div className="text-zinc-300">{(p.growth * 100).toFixed(1)}% / year</div>
+
+                          <div>Ticker speed:</div>
+                          <div className="text-zinc-300">${perSec.toFixed(4)} / second</div>
+
+                          <div>Last updated:</div>
+                          <div className="text-zinc-300">{new Date(p.updatedAt).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Footer */}
+        <div className="mt-8 pt-8 border-t border-zinc-800 flex gap-4">
           <a
             href="/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors inline-block"
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors"
           >
-            Ouvrir le dashboard
+            Open Dashboard
+          </a>
+          <a
+            href="/api/config"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors"
+          >
+            View Raw API Response
           </a>
         </div>
       </div>
