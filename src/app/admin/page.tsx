@@ -56,7 +56,6 @@ function formatPercent(value: number, decimals = 1): string {
 export default function AdminPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
 
   async function fetchData() {
     setLoading(true);
@@ -64,7 +63,6 @@ export default function AdminPage() {
       const res = await fetch("/api/config");
       const data = await res.json();
       setConfig(data);
-      setLastFetch(new Date());
     } catch (e) {
       console.error("Failed to fetch config:", e);
     }
@@ -97,7 +95,15 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold">ARR Dashboard - Debug View</h1>
           <div className="flex items-center gap-4">
             <span className="text-zinc-500 text-sm">
-              Loaded: {lastFetch?.toLocaleTimeString()}
+              Last Holistics sync:{" "}
+              {new Date(config.lemlist.updatedAt).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
             </span>
             <button
               onClick={fetchData}
