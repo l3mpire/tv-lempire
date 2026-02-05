@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
 
 export const dynamic = "force-dynamic";
@@ -182,6 +183,13 @@ function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
   const [time, setTime] = useState("");
   const [showHelp, setShowHelp] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }, [router]);
   const showVideo = useMemo(() => {
     if (typeof window === "undefined") return true;
     return !new URLSearchParams(window.location.search).has("novideo");
@@ -343,6 +351,7 @@ function ARRDashboard() {
         <span className="dash-ticker-dot" />
         <span className="dash-ticker-text">Live</span>
         <button className="dash-help-btn" onClick={() => setShowHelp(true)}>?</button>
+        <button className="dash-logout-btn" onClick={handleLogout}>Logout</button>
       </div>
       <div className="dash-time">{time}</div>
 

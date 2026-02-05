@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const SESSION_COOKIE = "dashboard_session";
+const SESSION_VALUE = "authenticated";
+
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Admin routes: Basic Auth (existing behavior)
+  if (pathname.startsWith("/admin")) {
+    return handleAdminAuth(request);
+  }
+
+  // Dashboard root: session cookie
+  if (pathname === "/") {
+    return handleDashboardAuth(request);
+  }
+
+  return NextResponse.next();
+}
+
+function handleAdminAuth(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
 
   if (authHeader) {
@@ -22,6 +41,18 @@ export function proxy(request: NextRequest) {
   });
 }
 
+function handleDashboardAuth(request: NextRequest) {
+  const session = request.cookies.get(SESSION_COOKIE);
+
+  if (session?.value === SESSION_VALUE) {
+    return NextResponse.next();
+  }
+
+  // Redirect to login
+  const loginUrl = new URL("/login", request.url);
+  return NextResponse.redirect(loginUrl);
+}
+
 export const config = {
-  matcher: ["/admin", "/admin/:path*"],
+  matcher: ["/", "/admin", "/admin/:path*"],
 };

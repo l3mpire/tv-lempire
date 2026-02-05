@@ -81,6 +81,7 @@ Voir `HOLISTICS_INTEGRATION.md` pour les détails de l'API Holistics.
 ## Règles importantes
 
 - **Ne JAMAIS démarrer le serveur de dev**. L'utilisateur le lance lui-même manuellement.
+- **Code en anglais uniquement**. Pas de français dans le code (variables, commentaires, textes UI, placeholders).
 
 ## Dev
 
