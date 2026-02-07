@@ -201,7 +201,7 @@ export default function AdminPage() {
                     <div className="text-xl font-bold text-white">
                       {formatCurrency(groupARR)}
                     </div>
-                    <div className="text-green-400 font-mono text-sm">
+                    <div className={`font-mono text-sm ${groupMonthGrowth >= 0 ? "text-green-400" : "text-red-400"}`}>
                       {formatCurrency(groupMonthGrowth)} ({formatPercent(groupMoM)} MoM · {formatPercent(groupYoY, 0)} YoY)
                     </div>
                   </div>
