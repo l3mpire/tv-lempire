@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
+import ChatOverlay from "./ChatOverlay";
 
 export const dynamic = "force-dynamic";
 
@@ -357,6 +358,9 @@ function ARRDashboard() {
 
       {/* Help popup */}
       {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
+
+      {/* Chat overlay */}
+      <ChatOverlay />
     </div>
   );
 }
