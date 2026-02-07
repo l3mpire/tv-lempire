@@ -28,6 +28,7 @@ export async function GET() {
   const messages = (data ?? []).map((msg: Record<string, unknown>) => ({
     id: msg.id,
     content: msg.content,
+    userId: msg.user_id,
     userName: (msg.users as { name: string } | null)?.name ?? "Unknown",
     createdAt: msg.created_at,
   }));
@@ -90,8 +91,61 @@ export async function POST(request: NextRequest) {
     message: {
       id: msg.id,
       content: msg.content,
+      userId: userId,
       userName: user.name,
       createdAt: msg.created_at,
     },
   });
+}
+
+export async function DELETE(request: NextRequest) {
+  const cookieStore = await cookies();
+  const sessionValue = cookieStore.get(SESSION_COOKIE)?.value;
+
+  if (!sessionValue || sessionValue === "authenticated") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = sessionValue;
+
+  let body: { messageId?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const messageId = body.messageId;
+  if (!messageId) {
+    return NextResponse.json({ error: "messageId is required" }, { status: 400 });
+  }
+
+  const supabase = getSupabase();
+
+  // Fetch the message to verify ownership
+  const { data: msg, error: fetchError } = await supabase
+    .from("messages")
+    .select("id, user_id")
+    .eq("id", messageId)
+    .single();
+
+  if (fetchError || !msg) {
+    return NextResponse.json({ error: "Message not found" }, { status: 404 });
+  }
+
+  if (msg.user_id !== userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { error: deleteError } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", messageId);
+
+  if (deleteError) {
+    console.error("DELETE /api/messages error:", deleteError);
+    return NextResponse.json({ error: "Failed to delete message" }, { status: 500 });
+  }
+
+  return NextResponse.json({ deleted: messageId });
 }

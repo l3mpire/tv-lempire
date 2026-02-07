@@ -6,6 +6,7 @@ import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 type Message = {
   id: string;
   content: string;
+  userId: string;
   userName: string;
   createdAt: string;
 };
@@ -35,12 +36,28 @@ export default function ChatOverlay() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  // Fetch current user
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.user?.id) setCurrentUserId(data.user.id);
+      } catch {
+        // Not logged in
+      }
+    };
+    fetchUser();
   }, []);
 
   // Initial fetch + Realtime subscription
@@ -73,6 +90,11 @@ export default function ChatOverlay() {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
         });
+      })
+      .on("broadcast", { event: "delete_message" }, ({ payload }) => {
+        const { id } = payload as { id: string };
+        if (!id) return;
+        setMessages((prev) => prev.filter((m) => m.id !== id));
       })
       .subscribe();
 
@@ -122,6 +144,29 @@ export default function ChatOverlay() {
     }
   };
 
+  const handleDelete = async (messageId: string) => {
+    try {
+      const res = await fetch("/api/messages", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+
+      if (res.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+        // Broadcast deletion to other clients
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "delete_message",
+          payload: { id: messageId },
+        });
+      }
+    } catch (e) {
+      console.error("Failed to delete message:", e);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -165,6 +210,17 @@ export default function ChatOverlay() {
                 <div className="chat-message-header">
                   <span className="chat-message-user">{msg.userName}</span>
                   <span className="chat-message-time">{relativeTime(msg.createdAt)}</span>
+                  {currentUserId && msg.userId === currentUserId && (
+                    <button
+                      className="chat-delete-btn"
+                      onClick={() => handleDelete(msg.id)}
+                      aria-label="Delete message"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 2L8 8M8 2L2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <div className="chat-message-content">{msg.content}</div>
               </div>
