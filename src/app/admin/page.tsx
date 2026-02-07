@@ -76,9 +76,13 @@ export default function AdminPage() {
       const res = await fetch("/api/cron/refresh-holistics", {
         credentials: "include",
       });
+      const data = await res.json();
       if (!res.ok) {
-        const error = await res.json();
-        console.error("Failed to refresh from Holistics:", error);
+        console.error("Failed to refresh from Holistics:", data);
+      } else if (data.config) {
+        // Use fresh data directly from the sync response
+        // to avoid Edge Config cache delay
+        setConfig(data.config as Config);
       } else {
         await fetchData();
       }

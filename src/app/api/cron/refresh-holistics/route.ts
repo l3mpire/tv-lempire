@@ -203,12 +203,19 @@ export async function GET(request: Request) {
 
     console.log("[Cron] Holistics data refresh completed successfully");
 
+    // Build full config to return (avoids Edge Config cache delay)
+    const freshConfig: Record<string, ProductConfig> = {};
+    for (const item of items) {
+      freshConfig[item.key] = item.value;
+    }
+
     return NextResponse.json({
       success: true,
       message: "Holistics data saved to Edge Config",
       currentMonth,
       previousMonth,
       products: items.map((i) => ({ key: i.key, arr: i.value.arr, monthGrowth: i.value.monthGrowth })),
+      config: freshConfig,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
