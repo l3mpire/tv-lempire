@@ -70,7 +70,7 @@ function computeFlipKeys(
   return newFlipKeys;
 }
 
-export default function SplitFlapDisplay({
+const SplitFlapDisplay = memo(function SplitFlapDisplay({
   value,
   className,
   style,
@@ -103,4 +103,6 @@ export default function SplitFlapDisplay({
       ))}
     </span>
   );
-}
+});
+
+export default SplitFlapDisplay;

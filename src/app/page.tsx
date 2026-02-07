@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
 import ChatOverlay from "./ChatOverlay";
+import NewsTicker from "./NewsTicker";
+import { useNow } from "./arrTickerStore";
 
 export const dynamic = "force-dynamic";
 
@@ -26,29 +28,74 @@ type Config = {
 const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 type ProductKey = (typeof PRODUCTS)[number];
 
-function useProductTicker(config: ProductConfig | null) {
-  const [current, setCurrent] = useState<number | null>(null);
-  const configRef = useRef(config);
-  configRef.current = config;
-
-  useEffect(() => {
-    if (!config || config.arr === 0 || config.updatedAt === 0) return;
-
-    const tick = () => {
-      const c = configRef.current;
-      if (!c) return;
-      const dollarPerSecond = (c.arr * c.growth) / (365.25 * 24 * 3600);
-      const elapsed = (Date.now() - c.updatedAt) / 1000;
-      setCurrent(c.arr + elapsed * dollarPerSecond);
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [config?.arr, config?.growth, config?.updatedAt]);
-
-  return current;
+function computeARR(config: ProductConfig | null, now: number): number | null {
+  if (!config || config.arr === 0 || config.updatedAt === 0) return null;
+  const dollarPerSecond = (config.arr * config.growth) / (365.25 * 24 * 3600);
+  const elapsed = (now - config.updatedAt) / 1000;
+  return config.arr + elapsed * dollarPerSecond;
 }
+
+type ProductCardProps = {
+  name: string;
+  logos: string[];
+  arr: number | null;
+  baseARR: number;
+  monthGrowth: number;
+  delay: number;
+};
+
+const ProductCard = memo(function ProductCard({
+  name,
+  logos,
+  arr,
+  baseARR,
+  monthGrowth,
+  delay,
+}: ProductCardProps) {
+  if (arr === null) return null;
+
+  return (
+    <div
+      className="product-card"
+      style={{ animationDelay: `${delay}s` }}
+    >
+      <div className="product-name">{name}</div>
+
+      <div className="product-arr-row">
+        <div className="product-arr">
+          <SplitFlapDisplay value={`$${formatARR(arr)}`} />
+        </div>
+        <div className="product-logos">
+          {logos.map((src) => (
+            <img key={src} src={src} alt="" className="product-logo" />
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="product-growth"
+        style={{ color: growthColor(monthGrowth) }}
+      >
+        {formatMonthGrowth(monthGrowth)} {formatGrowthLine(monthGrowth, baseARR)}
+      </div>
+    </div>
+  );
+});
+
+const Clock = memo(function Clock({ now }: { now: number }) {
+  const time = useMemo(
+    () =>
+      new Date(now).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }),
+    [now]
+  );
+
+  return <span className="dash-time">{time}</span>;
+});
 
 function formatARR(value: number): string {
   return Math.floor(value).toLocaleString("en-US");
@@ -82,52 +129,6 @@ function growthColor(value: number): string {
   if (value > 0) return "var(--accent)";
   if (value < 0) return "var(--negative)";
   return "rgba(255,255,255,0.5)";
-}
-
-// ── Product card (left column) ──────────────────────────────
-function ProductCard({
-  name,
-  logos,
-  arr,
-  baseARR,
-  monthGrowth,
-  delay,
-}: {
-  name: string;
-  logos: string[];
-  arr: number | null;
-  baseARR: number;
-  monthGrowth: number;
-  delay: number;
-}) {
-  if (arr === null) return null;
-
-  return (
-    <div
-      className="product-card"
-      style={{ animationDelay: `${delay}s` }}
-    >
-      <div className="product-name">{name}</div>
-
-      <div className="product-arr-row">
-        <div className="product-arr">
-          <SplitFlapDisplay value={`$${formatARR(arr)}`} />
-        </div>
-        <div className="product-logos">
-          {logos.map((src) => (
-            <img key={src} src={src} alt="" className="product-logo" />
-          ))}
-        </div>
-      </div>
-
-      <div
-        className="product-growth"
-        style={{ color: growthColor(monthGrowth) }}
-      >
-        {formatMonthGrowth(monthGrowth)} {formatGrowthLine(monthGrowth, baseARR)}
-      </div>
-    </div>
-  );
 }
 
 // ── Help popup ──────────────────────────────────────────────
@@ -179,10 +180,35 @@ function HelpPopup({ onClose }: { onClose: () => void }) {
   );
 }
 
+const VideoBackground = memo(function VideoBackground({ showVideo }: { showVideo: boolean }) {
+  if (!showVideo) return null;
+  return (
+    <div className="dash-video-bg">
+      <iframe
+        src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
+        allow="autoplay"
+        className="dash-video-iframe"
+      />
+      <div className="dash-video-dim" />
+    </div>
+  );
+});
+
+const AmbientBackground = memo(function AmbientBackground() {
+  return (
+    <>
+      <div className="dash-bg">
+        <div className="dash-orb dash-orb-1" />
+        <div className="dash-vignette" />
+      </div>
+      <div className="dash-noise" />
+    </>
+  );
+});
+
 // ── Main dashboard ──────────────────────────────────────────
 function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
-  const [time, setTime] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const router = useRouter();
 
@@ -212,38 +238,52 @@ function ARRDashboard() {
       .then((data: Config) => setConfig(data));
   }, []);
 
-  // Individual tickers
-  const lemlistARR = useProductTicker(config?.lemlist ?? null);
-  const lemwarmARR = useProductTicker(config?.lemwarm ?? null);
-  const lemcalARR = useProductTicker(config?.lemcal ?? null);
-  const claapARR = useProductTicker(config?.claap ?? null);
-  const taplioARR = useProductTicker(config?.taplio ?? null);
-  const tweethunterARR = useProductTicker(config?.tweethunter ?? null);
-
-  // Clock
-  useEffect(() => {
-    const update = () => {
-      setTime(
-        new Date().toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        })
-      );
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (!config || lemlistARR === null) {
+  if (!config) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <span className="loading-text">Initializing</span>
       </div>
     );
   }
+
+  return (
+    <div className="dash-wrapper">
+      {/* Video background */}
+      <VideoBackground showVideo={showVideo} />
+
+      {/* Ambient background */}
+      <AmbientBackground />
+
+      <ARRDynamic
+        config={config}
+        onShowHelp={() => setShowHelp(true)}
+        onLogout={handleLogout}
+      />
+
+      {/* Help popup */}
+      {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
+    </div>
+  );
+}
+
+function ARRDynamic({
+  config,
+  onShowHelp,
+  onLogout,
+}: {
+  config: Config;
+  onShowHelp: () => void;
+  onLogout: () => void;
+}) {
+  const now = useNow();
+  const lemlistARR = computeARR(config.lemlist, now);
+  const lemwarmARR = computeARR(config.lemwarm, now);
+  const lemcalARR = computeARR(config.lemcal, now);
+  const claapARR = computeARR(config.claap, now);
+  const taplioARR = computeARR(config.taplio, now);
+  const tweethunterARR = computeARR(config.tweethunter, now);
+
+  if (lemlistARR === null) return null;
 
   // Computed sums - Sales Engagement (lemlist + lemwarm + lemcal)
   const salesEngagementARR =
@@ -272,26 +312,7 @@ function ARRDashboard() {
   const totalMonthGrowth = PRODUCTS.reduce((sum, p) => sum + config[p].monthGrowth, 0);
 
   return (
-    <div className="dash-wrapper">
-      {/* Video background */}
-      {showVideo && (
-        <div className="dash-video-bg">
-          <iframe
-            src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
-            allow="autoplay"
-            className="dash-video-iframe"
-          />
-          <div className="dash-video-dim" />
-        </div>
-      )}
-
-      {/* Ambient background */}
-      <div className="dash-bg">
-        <div className="dash-orb dash-orb-1" />
-        <div className="dash-vignette" />
-      </div>
-      <div className="dash-noise" />
-
+    <>
       {/* Two-column layout */}
       <div className="dash-layout">
         {/* Left: product cards */}
@@ -347,21 +368,23 @@ function ARRDashboard() {
         </div>
       </div>
 
-      {/* Status indicators */}
-      <div className="dash-ticker">
-        <span className="dash-ticker-dot" />
-        <span className="dash-ticker-text">Live</span>
-        <button className="dash-help-btn" onClick={() => setShowHelp(true)}>?</button>
-        <button className="dash-logout-btn" onClick={handleLogout}>Logout</button>
+      {/* News ticker */}
+      <NewsTicker />
+
+      {/* Status bar */}
+      <div className="dash-status-bar">
+        <div className="dash-status-left">
+          <Clock now={now} />
+          <ChatOverlay />
+        </div>
+        <div className="dash-status-right">
+          <span className="dash-ticker-dot" />
+          <span className="dash-ticker-text">Live</span>
+          <button className="dash-help-btn" onClick={onShowHelp}>?</button>
+          <button className="dash-logout-btn" onClick={onLogout}>Logout</button>
+        </div>
       </div>
-      <div className="dash-time">{time}</div>
-
-      {/* Help popup */}
-      {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
-
-      {/* Chat overlay */}
-      <ChatOverlay />
-    </div>
+    </>
   );
 }
 

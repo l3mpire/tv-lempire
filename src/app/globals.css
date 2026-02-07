@@ -352,16 +352,31 @@ body {
   animation: fadeInUp 1s ease-out 1s both;
 }
 
-/* === STATUS === */
-.dash-ticker {
+/* === STATUS BAR === */
+.dash-status-bar {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 2rem;
+  animation: fadeIn 1s ease-out 1.8s both;
+}
+
+.dash-status-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dash-status-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  z-index: 3;
-  animation: fadeIn 1s ease-out 1.8s both;
 }
 
 .dash-ticker-dot {
@@ -405,15 +420,10 @@ body {
 }
 
 .dash-time {
-  position: fixed;
-  bottom: 2rem;
-  left: 2rem;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   color: rgba(255,255,255,0.35);
   letter-spacing: 0.1em;
-  z-index: 3;
-  animation: fadeIn 1s ease-out 2s both;
 }
 
 /* === SPLIT FLAP DISPLAY === */
@@ -726,23 +736,17 @@ body {
 
 /* === CHAT OVERLAY === */
 .chat-toggle-btn {
-  position: fixed;
-  bottom: 2rem;
-  left: 6.5rem;
-  z-index: 10;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  background: transparent;
   color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  animation: fadeIn 1s ease-out 2s both;
 }
 
 .chat-toggle-btn:hover {
@@ -753,7 +757,7 @@ body {
 
 .chat-panel {
   position: fixed;
-  bottom: 4.5rem;
+  bottom: 2.75rem;
   left: 2rem;
   z-index: 10;
   width: 350px;
@@ -848,6 +852,32 @@ body {
   color: rgba(255, 255, 255, 0.25);
 }
 
+.chat-delete-btn {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chat-message:hover .chat-delete-btn {
+  opacity: 1;
+}
+
+.chat-delete-btn:hover {
+  color: var(--negative);
+  background: var(--negative-dim);
+}
+
 .chat-message-content {
   font-family: 'Outfit', sans-serif;
   font-size: 0.85rem;
@@ -918,6 +948,99 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* === NEWS TICKER (Lower Third) === */
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-1 * var(--ticker-distance, 50%))); }
+}
+
+@keyframes tickerSlideUp {
+  0% { opacity: 0; transform: translateY(100%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tickerLabelPulse {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.news-ticker {
+  position: fixed;
+  bottom: 2.5rem;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  animation: tickerSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 2.2s both;
+}
+
+/* Top bar — red "BREAKING NEWS" label */
+.news-ticker-top {
+  align-self: flex-start;
+  margin-left: 2rem;
+}
+
+.news-ticker-label {
+  display: inline-block;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: white;
+  background: linear-gradient(135deg, #cc0000 0%, #e80000 50%, #cc0000 100%);
+  background-size: 200% 200%;
+  animation: tickerLabelPulse 3s ease-in-out infinite;
+  padding: 0.45rem 1.5rem 0.4rem;
+  border-radius: 4px 4px 0 0;
+}
+
+/* Bottom bar — dark band with scrolling content */
+.news-ticker-bottom {
+  background: rgba(12, 12, 12, 0.95);
+  border-top: 3px solid #cc0000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.75rem 0;
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.news-ticker-track {
+  display: flex;
+  white-space: nowrap;
+  animation: tickerScroll linear infinite;
+  will-change: transform;
+}
+
+.news-ticker-group {
+  display: inline-flex;
+  align-items: center;
+  min-width: 100vw;
+}
+
+.news-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 3rem;
+}
+
+.news-ticker-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.news-ticker-content {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* === MOBILE: show only total ARR === */
 @media (max-width: 768px) {
   .dash-layout {
@@ -940,13 +1063,19 @@ body {
     font-size: 1rem;
   }
 
-  .dash-ticker {
-    bottom: 1rem;
-    right: 1rem;
+  .dash-status-bar {
+    padding: 0.4rem 1rem;
   }
 
-  .dash-time {
-    bottom: 1rem;
-    left: 1rem;
+  .news-ticker {
+    bottom: 2.25rem;
+  }
+
+  .news-ticker-top {
+    margin-left: 1rem;
+  }
+
+  .news-ticker-bottom {
+    padding: 0.5rem 1rem;
   }
 }
