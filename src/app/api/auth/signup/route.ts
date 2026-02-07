@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
+import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
 
 const SESSION_COOKIE = "dashboard_session";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
+const ALLOWED_DOMAIN = "lempire.co";
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; name?: string; password?: string };
@@ -30,21 +33,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Restrict to @lempire.co emails
+  const normalizedEmail = email.toLowerCase().trim();
+  const domain = normalizedEmail.split("@")[1];
+  if (domain !== ALLOWED_DOMAIN) {
+    return NextResponse.json(
+      { error: "Only @lempire.co email addresses are allowed" },
+      { status: 403 }
+    );
+  }
+
   const supabase = getSupabase();
 
   // Hash password
   const passwordHash = await bcrypt.hash(password, 10);
+  const verificationToken = randomUUID();
 
-  // Insert user — is_admin is set atomically via DB default + trigger:
-  // The first row gets is_admin=true, all others get false.
-  // We insert with is_admin=false and let a DB trigger handle the first-user case,
-  // OR we use a conditional: insert, then check if this is the only user.
   const { data, error } = await supabase
     .from("users")
     .insert({
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       name: name.trim(),
       password_hash: passwordHash,
+      verified: false,
+      verification_token: verificationToken,
     })
     .select("id, name, email, is_admin")
     .single();
@@ -60,7 +72,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signup failed" }, { status: 500 });
   }
 
-  // Set session cookie with user UUID
+  // Send verification email
+  const appUrl = request.nextUrl.origin;
+  const verifyUrl = `${appUrl}/api/auth/verify?token=${verificationToken}`;
+
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "noreply@lempire.co",
+      to: normalizedEmail,
+      subject: "Verify your email - lempire Dashboard",
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #fff; background: #18181b; padding: 20px; border-radius: 8px; text-align: center;">
+            lempire Dashboard
+          </h2>
+          <p>Hi ${name.trim()},</p>
+          <p>Click the button below to verify your email and access the dashboard:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${verifyUrl}"
+               style="background: #22c55e; color: #fff; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+              Verify my email
+            </a>
+          </div>
+          <p style="color: #888; font-size: 13px;">Or copy this link: ${verifyUrl}</p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.error("Failed to send verification email:", e);
+  }
+
+  // Set session cookie (user can log in but middleware will redirect to /pending)
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, data.id, {
     httpOnly: true,
@@ -72,6 +115,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
+    needsVerification: true,
     user: {
       id: data.id,
       name: data.name,

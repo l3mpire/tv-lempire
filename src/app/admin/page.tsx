@@ -53,10 +53,83 @@ function formatPercent(value: number, decimals = 1): string {
   return `${sign}${value.toFixed(decimals)}%`;
 }
 
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  is_admin: boolean;
+  verified: boolean;
+  created_at: string;
+};
+
 export default function AdminPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [togglingUser, setTogglingUser] = useState<string | null>(null);
+
+  async function fetchUsers() {
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (data.users) setUsers(data.users);
+    } catch (e) {
+      console.error("Failed to fetch users:", e);
+    }
+  }
+
+  async function fetchCurrentUser() {
+    try {
+      const res = await fetch("/api/auth/me");
+      const data = await res.json();
+      if (data.user) setCurrentUserId(data.user.id);
+    } catch (e) {
+      console.error("Failed to fetch current user:", e);
+    }
+  }
+
+  async function patchUser(userId: string, patch: Record<string, unknown>) {
+    setTogglingUser(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ...patch }),
+      });
+      if (res.ok) {
+        await fetchUsers();
+      } else {
+        const data = await res.json();
+        console.error("Failed to update user:", data.error);
+      }
+    } catch (e) {
+      console.error("Failed to update user:", e);
+    }
+    setTogglingUser(null);
+  }
+
+  async function deleteUser(userId: string, userName: string) {
+    if (!confirm(`Delete ${userName} and all their messages?`)) return;
+    setTogglingUser(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        await fetchUsers();
+      } else {
+        const data = await res.json();
+        console.error("Failed to delete user:", data.error);
+      }
+    } catch (e) {
+      console.error("Failed to delete user:", e);
+    }
+    setTogglingUser(null);
+  }
 
   async function fetchData() {
     setLoading(true);
@@ -94,6 +167,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
+    fetchUsers();
+    fetchCurrentUser();
   }, []);
 
   if (loading || !config) {
@@ -115,7 +190,7 @@ export default function AdminPage() {
     <div className="fixed inset-0 bg-zinc-950 text-white p-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold">ARR Dashboard - Debug View</h1>
+          <h1 className="text-2xl font-bold">Admin Panel</h1>
           <div className="flex items-center gap-4">
             <span className="text-zinc-500 text-sm">
               Last Holistics sync:{" "}
@@ -158,6 +233,72 @@ export default function AdminPage() {
               {refreshing ? "Syncing..." : "Sync from Holistics"}
             </button>
           </div>
+        </div>
+
+        {/* USERS */}
+        <div className="border border-zinc-800 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users</h2>
+          {users.length === 0 ? (
+            <span className="text-zinc-500">Loading users...</span>
+          ) : (
+            <div className="space-y-2">
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <span className="text-zinc-200 font-medium">{user.name}</span>
+                      <span className="text-zinc-500 text-sm ml-2">{user.email}</span>
+                    </div>
+                    {user.is_admin && (
+                      <span className="text-xs bg-amber-900/50 text-amber-400 border border-amber-800 px-2 py-0.5 rounded">
+                        admin
+                      </span>
+                    )}
+                    {!user.verified && (
+                      <span className="text-xs bg-red-900/50 text-red-400 border border-red-800 px-2 py-0.5 rounded">
+                        unverified
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!user.verified && (
+                      <button
+                        onClick={() => patchUser(user.id, { verified: true })}
+                        disabled={togglingUser === user.id}
+                        className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-950 hover:bg-blue-900 text-blue-400 border border-blue-800"
+                      >
+                        Verify
+                      </button>
+                    )}
+                    <button
+                      onClick={() => patchUser(user.id, { isAdmin: !user.is_admin })}
+                      disabled={togglingUser === user.id || user.id === currentUserId}
+                      className={`px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        user.is_admin
+                          ? "bg-red-950 hover:bg-red-900 text-red-400 border border-red-800"
+                          : "bg-green-950 hover:bg-green-900 text-green-400 border border-green-800"
+                      }`}
+                      title={user.id === currentUserId ? "Cannot change your own role" : undefined}
+                    >
+                      {user.is_admin ? "Remove admin" : "Make admin"}
+                    </button>
+                    {user.id !== currentUserId && (
+                      <button
+                        onClick={() => deleteUser(user.id, user.name)}
+                        disabled={togglingUser === user.id}
+                        className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* TOTAL */}

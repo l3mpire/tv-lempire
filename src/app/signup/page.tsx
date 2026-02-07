@@ -27,7 +27,7 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (res.ok) {
-        router.push("/");
+        router.push("/pending");
         router.refresh();
       } else {
         setError(data.error || "Signup failed");
@@ -77,7 +77,7 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="login-input"
-              placeholder="you@example.com"
+              placeholder="you@lempire.co"
               required
               autoComplete="email"
             />
