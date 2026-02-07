@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,17 +18,19 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
+
+      const data = await res.json();
 
       if (res.ok) {
         router.push("/");
         router.refresh();
       } else {
-        setError("Invalid credentials");
+        setError(data.error || "Signup failed");
       }
     } catch {
       setError("Connection error");
@@ -45,12 +48,27 @@ export default function LoginPage() {
       </div>
       <div className="dash-noise" />
 
-      {/* Login card */}
+      {/* Signup card */}
       <div className="login-card">
         <div className="login-brand">lempire</div>
-        <div className="login-title">ARR Dashboard</div>
+        <div className="login-title">Create Account</div>
 
         <form onSubmit={handleSubmit} className="login-form">
+          <div className="login-field">
+            <label htmlFor="name" className="login-label">Name</label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="login-input"
+              placeholder="Your name"
+              required
+              autoComplete="name"
+              autoFocus
+            />
+          </div>
+
           <div className="login-field">
             <label htmlFor="email" className="login-label">Email</label>
             <input
@@ -62,7 +80,6 @@ export default function LoginPage() {
               placeholder="you@example.com"
               required
               autoComplete="email"
-              autoFocus
             />
           </div>
 
@@ -74,8 +91,9 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="login-input"
-              placeholder="••••••••"
+              placeholder="Min. 6 characters"
               required
+              minLength={6}
             />
           </div>
 
@@ -86,11 +104,11 @@ export default function LoginPage() {
             className="login-button"
             disabled={loading}
           >
-            {loading ? "..." : "Sign In"}
+            {loading ? "..." : "Sign Up"}
           </button>
 
           <div className="login-link">
-            <Link href="/signup">No account? Sign up</Link>
+            <Link href="/login">Already have an account? Sign in</Link>
           </div>
         </form>
       </div>

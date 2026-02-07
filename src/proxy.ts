@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "dashboard_session";
-const SESSION_VALUE = "authenticated";
+
+const PUBLIC_PATHS = ["/login", "/signup", "/api/"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Admin routes: Basic Auth (existing behavior)
+  // Allow public paths
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Admin routes: also require Basic Auth (on top of session)
   if (pathname.startsWith("/admin")) {
     return handleAdminAuth(request);
   }
 
-  // Dashboard root: session cookie
-  if (pathname === "/") {
-    return handleDashboardAuth(request);
+  // All other routes: require session cookie with valid UUID
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!session || !UUID_RE.test(session)) {
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
@@ -41,18 +50,6 @@ function handleAdminAuth(request: NextRequest) {
   });
 }
 
-function handleDashboardAuth(request: NextRequest) {
-  const session = request.cookies.get(SESSION_COOKIE);
-
-  if (session?.value === SESSION_VALUE) {
-    return NextResponse.next();
-  }
-
-  // Redirect to login
-  const loginUrl = new URL("/login", request.url);
-  return NextResponse.redirect(loginUrl);
-}
-
 export const config = {
-  matcher: ["/", "/admin", "/admin/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
