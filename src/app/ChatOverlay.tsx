@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 
 type Message = {
@@ -31,7 +31,7 @@ function createBrowserSupabase() {
   return createClient(url, key);
 }
 
-export default function ChatOverlay() {
+export default memo(function ChatOverlay() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -254,4 +254,4 @@ export default function ChatOverlay() {
       )}
     </>
   );
-}
+});

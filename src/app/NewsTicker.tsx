@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 
 type Message = {
@@ -23,12 +23,15 @@ const SCROLL_SPEED = 60; // pixels per second
 export default function NewsTicker() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [renderMessages, setRenderMessages] = useState<Message[]>([]);
-  const [paused, setPaused] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const groupRef = useRef<HTMLDivElement>(null);
-  const [duration, setDuration] = useState(20);
-  const [distance, setDistance] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef<Message[]>([]);
+  const pausedRef = useRef(false);
+  const offsetRef = useRef(0);
+  const groupWidthRef = useRef(0);
+  const rafRef = useRef<number>(0);
+  const lastTimeRef = useRef(0);
 
   // Fetch messages + subscribe to realtime
   useEffect(() => {
@@ -74,7 +77,7 @@ export default function NewsTicker() {
     };
   }, []);
 
-  // Defer updates to loop boundary to avoid mid-scroll overlaps
+  // Defer updates to loop boundary — store pending, apply immediately if first render
   useEffect(() => {
     pendingRef.current = messages;
     if (renderMessages.length === 0 && messages.length > 0) {
@@ -82,21 +85,65 @@ export default function NewsTicker() {
     }
   }, [messages, renderMessages.length]);
 
-  // Calculate scroll duration based on group width
+  // Measure group width when renderMessages change
+  const measureGroupWidth = useCallback(() => {
+    if (groupRef.current) {
+      groupWidthRef.current = groupRef.current.scrollWidth;
+    }
+  }, []);
+
   useEffect(() => {
-    if (!groupRef.current || renderMessages.length === 0) return;
-    const update = () => {
-      const groupWidth = groupRef.current?.scrollWidth ?? 0;
-      setDistance(groupWidth);
-      setDuration(groupWidth / SCROLL_SPEED);
-    };
+    measureGroupWidth();
+  }, [renderMessages, measureGroupWidth]);
 
-    update();
-
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(update);
+  // Observe resize to keep groupWidth in sync
+  useEffect(() => {
+    if (!groupRef.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measureGroupWidth);
     observer.observe(groupRef.current);
     return () => observer.disconnect();
+  }, [renderMessages, measureGroupWidth]);
+
+  // rAF scroll loop
+  useEffect(() => {
+    if (renderMessages.length === 0) return;
+
+    const tick = (timestamp: number) => {
+      if (lastTimeRef.current === 0) {
+        lastTimeRef.current = timestamp;
+      }
+
+      const delta = (timestamp - lastTimeRef.current) / 1000; // seconds
+      lastTimeRef.current = timestamp;
+
+      if (!pausedRef.current && groupWidthRef.current > 0) {
+        offsetRef.current += SCROLL_SPEED * delta;
+
+        // Seamless loop: snap back when we've scrolled one full group
+        if (offsetRef.current >= groupWidthRef.current) {
+          offsetRef.current -= groupWidthRef.current;
+
+          // Safe moment to swap pending messages (at loop boundary)
+          const next = pendingRef.current;
+          if (next.length > 0 && next !== renderMessages) {
+            setRenderMessages(next);
+          }
+        }
+      }
+
+      if (trackRef.current) {
+        trackRef.current.style.transform = `translateX(-${offsetRef.current}px)`;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      lastTimeRef.current = 0;
+    };
   }, [renderMessages]);
 
   if (renderMessages.length === 0) return null;
@@ -104,30 +151,20 @@ export default function NewsTicker() {
   return (
     <div
       className="news-ticker"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; }}
     >
       <div className="news-ticker-top">
         <span className="news-ticker-label">Breaking News</span>
       </div>
       <div className="news-ticker-bottom">
-        <div
-          className="news-ticker-track"
-          style={{
-            animationDuration: `${duration}s`,
-            ["--ticker-distance" as string]: `${distance}px`,
-            animationPlayState: paused ? "paused" : "running",
-          }}
-          onAnimationIteration={() => {
-            const next = pendingRef.current;
-            if (next.length > 0 && next !== renderMessages) {
-              setRenderMessages(next);
-            }
-          }}
-        >
+        <div ref={trackRef} className="news-ticker-track">
           <div ref={groupRef} className="news-ticker-group">
             {renderMessages.map((msg) => (
               <span key={msg.id} className="news-ticker-item">
+                {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
+                  <span className="news-ticker-badge-new">🔥 new</span>
+                )}
                 <span className="news-ticker-name">{msg.userName}</span>
                 <span className="news-ticker-content">{msg.content}</span>
               </span>
@@ -136,6 +173,9 @@ export default function NewsTicker() {
           <div className="news-ticker-group">
             {renderMessages.map((msg) => (
               <span key={`dup-${msg.id}`} className="news-ticker-item">
+                {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
+                  <span className="news-ticker-badge-new">🔥 new</span>
+                )}
                 <span className="news-ticker-name">{msg.userName}</span>
                 <span className="news-ticker-content">{msg.content}</span>
               </span>

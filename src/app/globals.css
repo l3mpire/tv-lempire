@@ -949,11 +949,6 @@ body {
 }
 
 /* === NEWS TICKER (Lower Third) === */
-@keyframes tickerScroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(calc(-1 * var(--ticker-distance, 50%))); }
-}
-
 @keyframes tickerSlideUp {
   0% { opacity: 0; transform: translateY(100%); }
   100% { opacity: 1; transform: translateY(0); }
@@ -1009,7 +1004,6 @@ body {
 .news-ticker-track {
   display: flex;
   white-space: nowrap;
-  animation: tickerScroll linear infinite;
   will-change: transform;
 }
 
@@ -1017,6 +1011,7 @@ body {
   display: inline-flex;
   align-items: center;
   min-width: 100vw;
+  flex-shrink: 0;
 }
 
 .news-ticker-item {
@@ -1024,6 +1019,20 @@ body {
   align-items: center;
   gap: 0.6rem;
   padding: 0 3rem;
+}
+
+.news-ticker-badge-new {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cc0000;
+  background: rgba(204, 0, 0, 0.2);
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .news-ticker-name {

@@ -2,26 +2,30 @@
 
 import { useSyncExternalStore } from "react";
 
-type Snapshot = {
-  now: number;
-};
-
-let state: Snapshot = { now: Date.now() };
-let timer: ReturnType<typeof setInterval> | null = null;
+let now = Date.now();
+let lastSecond = Math.floor(now / 1000);
+let raf: number | null = null;
 const listeners = new Set<() => void>();
 
+function tick() {
+  raf = requestAnimationFrame(tick);
+  const t = Date.now();
+  const sec = Math.floor(t / 1000);
+  if (sec === lastSecond) return;
+  lastSecond = sec;
+  now = t;
+  listeners.forEach((l) => l());
+}
+
 function start() {
-  if (timer) return;
-  timer = setInterval(() => {
-    state = { now: Date.now() };
-    listeners.forEach((listener) => listener());
-  }, 1000);
+  if (raf !== null) return;
+  raf = requestAnimationFrame(tick);
 }
 
 function stop() {
-  if (!timer || listeners.size > 0) return;
-  clearInterval(timer);
-  timer = null;
+  if (raf === null || listeners.size > 0) return;
+  cancelAnimationFrame(raf);
+  raf = null;
 }
 
 function subscribe(listener: () => void) {
@@ -33,15 +37,14 @@ function subscribe(listener: () => void) {
   };
 }
 
-function getSnapshot(): Snapshot {
-  return state;
+function getSnapshot(): number {
+  return now;
 }
 
-function getServerSnapshot(): Snapshot {
-  return { now: Date.now() };
+function getServerSnapshot(): number {
+  return Date.now();
 }
 
 export function useNow(): number {
-  const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return snap.now;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
