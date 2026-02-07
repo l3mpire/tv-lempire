@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { get } from "@vercel/edge-config";
+import { getSupabase } from "@/lib/supabase";
 
 type ProductConfig = {
   arr: number;
@@ -19,7 +19,7 @@ type Config = {
 
 const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 
-// Default values (used if Edge Config is empty or not configured)
+// Default values (used if Supabase is empty or unreachable)
 const DEFAULT_CONFIG: Config = {
   lemlist: { arr: 37649178, growth: 0.10, monthGrowth: 297574, updatedAt: Date.now() },
   lemwarm: { arr: 1675328, growth: 0.10, monthGrowth: 13570, updatedAt: Date.now() },
@@ -31,19 +31,22 @@ const DEFAULT_CONFIG: Config = {
 
 export async function GET() {
   try {
-    const config: Partial<Config> = {};
-    let hasData = false;
+    const { data, error } = await getSupabase()
+      .from("products")
+      .select("id, arr, growth, month_growth, updated_at");
 
-    // Read from Edge Config (populated by cron every 6h)
-    for (const product of PRODUCTS) {
-      const data = await get<ProductConfig>(product);
-      if (data) {
-        config[product] = data;
-        hasData = true;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      const config: Partial<Config> = {};
+      for (const row of data) {
+        config[row.id as keyof Config] = {
+          arr: row.arr,
+          growth: row.growth,
+          monthGrowth: row.month_growth,
+          updatedAt: row.updated_at,
+        };
       }
-    }
-
-    if (hasData) {
       // Fill missing products with defaults
       for (const product of PRODUCTS) {
         if (!config[product]) {
@@ -53,7 +56,6 @@ export async function GET() {
       return NextResponse.json(config);
     }
 
-    // No Edge Config data, return defaults
     return NextResponse.json(DEFAULT_CONFIG);
   } catch {
     return NextResponse.json(DEFAULT_CONFIG);
@@ -62,44 +64,22 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body: Config = await request.json();
-
-  const edgeConfigId = process.env.EDGE_CONFIG_ID;
-  const vercelApiToken = process.env.VERCEL_API_TOKEN;
-
-  if (!edgeConfigId || !vercelApiToken) {
-    return NextResponse.json(
-      { error: "Edge Config not configured (missing EDGE_CONFIG_ID or VERCEL_API_TOKEN)" },
-      { status: 500 }
-    );
-  }
-
   const now = Date.now();
-  const items = PRODUCTS.map((product) => ({
-    operation: "upsert" as const,
-    key: product,
-    value: {
-      arr: body[product].arr,
-      growth: body[product].growth,
-      monthGrowth: body[product].monthGrowth,
-      updatedAt: now,
-    },
+
+  const rows = PRODUCTS.map((product) => ({
+    id: product,
+    arr: body[product].arr,
+    growth: body[product].growth,
+    month_growth: body[product].monthGrowth,
+    updated_at: now,
   }));
 
-  const res = await fetch(
-    `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${vercelApiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ items }),
-    }
-  );
+  const { error } = await getSupabase()
+    .from("products")
+    .upsert(rows, { onConflict: "id" });
 
-  if (!res.ok) {
-    const error = await res.json();
-    return NextResponse.json({ error }, { status: res.status });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   return NextResponse.json({ status: "ok" });

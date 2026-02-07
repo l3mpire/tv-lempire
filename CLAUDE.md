@@ -5,13 +5,16 @@ Dashboard temps réel affichant l'ARR (Annual Recurring Revenue) par produit lem
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Tailwind CSS)
-- **Vercel** (hébergement + Edge Config pour la persistance)
+- **Vercel** (hébergement)
+- **Supabase** (base PostgreSQL pour la persistance)
 - **Fonts** : Outfit (display), JetBrains Mono (labels/metrics)
 
 ## Architecture
 
 ```
 src/
+  lib/
+    supabase.ts       # Client Supabase (server-side, service role)
   app/
     page.tsx          # Dashboard TV (public) - layout 2 colonnes, tickers ARR par produit
     layout.tsx        # Layout global (dark theme)
@@ -20,9 +23,10 @@ src/
       page.tsx        # Interface admin (protégée par mot de passe) - config par produit
     api/
       config/
-        route.ts      # GET/POST: config multi-produit (Holistics → Edge Config → defaults)
-      holistics/
-        route.ts      # GET: données ARR brutes depuis Holistics.io
+        route.ts      # GET/POST: config multi-produit (Holistics → Supabase → defaults)
+      cron/
+        refresh-holistics/
+          route.ts    # GET: sync Holistics → Supabase
   middleware.ts        # HTTP Basic Auth sur /admin
 ```
 
@@ -63,20 +67,30 @@ Un seul bouton "Save all" qui envoie la config complète.
 | Variable | Description |
 |---|---|
 | `ADMIN_PASSWORD` | Mot de passe pour accéder à `/admin` |
-| `EDGE_CONFIG` | Connection string Edge Config (créée auto par Vercel) |
-| `EDGE_CONFIG_ID` | ID de l'Edge Config (format `ecfg_...`) |
-| `VERCEL_API_TOKEN` | Token API Vercel (pour écrire dans Edge Config) |
+| `SUPABASE_URL` | URL du projet Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé service role Supabase (server-side uniquement) |
 | `HOLISTICS_API_KEY` | Clé API Holistics.io (optionnel) |
 | `HOLISTICS_HOST` | Host Holistics (défaut: `https://eu.holistics.io`) |
 | `HOLISTICS_REPORT_ID` | ID du rapport ARR breakdown (défaut: `2199023346927`) |
 
 ## Sources de données (priorité)
 
-1. **Holistics.io** (si `HOLISTICS_API_KEY` configurée) - données ARR temps réel depuis le data warehouse
-2. **Edge Config** (si configurée) - valeurs saisies manuellement via `/admin`
-3. **Valeurs par défaut** - fallback hardcodé
+1. **Holistics.io** (si `HOLISTICS_API_KEY` configurée) - données ARR temps réel depuis le data warehouse, stockées dans Supabase via cron
+2. **Supabase** (table `products`) - source principale de la config produit
+3. **Valeurs par défaut** - fallback hardcodé si Supabase est vide ou injoignable
 
 Voir `HOLISTICS_INTEGRATION.md` pour les détails de l'API Holistics.
+
+## Base de données (Supabase)
+
+Table `products` :
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | TEXT (PK) | Slug produit (lemlist, lemwarm, lemcal, claap, taplio, tweethunter) |
+| `arr` | DOUBLE PRECISION | ARR en $ |
+| `growth` | DOUBLE PRECISION | Taux de croissance annuel (décimal) |
+| `month_growth` | DOUBLE PRECISION | Croissance du mois en cours ($) |
+| `updated_at` | BIGINT | Timestamp ms de dernière mise à jour |
 
 ## Règles importantes
 

@@ -1,0 +1,31 @@
+CREATE TABLE products (
+  id TEXT PRIMARY KEY,
+  arr DOUBLE PRECISION NOT NULL DEFAULT 0,
+  growth DOUBLE PRECISION NOT NULL DEFAULT 0,
+  month_growth DOUBLE PRECISION NOT NULL DEFAULT 0,
+  updated_at BIGINT NOT NULL DEFAULT 0
+);
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;

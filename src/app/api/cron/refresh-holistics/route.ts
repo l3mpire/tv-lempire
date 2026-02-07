@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSupabase } from "@/lib/supabase";
 
 const HOLISTICS_HOST = process.env.HOLISTICS_HOST || "https://eu.holistics.io";
 const HOLISTICS_API_KEY = process.env.HOLISTICS_API_KEY;
@@ -22,7 +23,7 @@ type ProductConfig = {
 };
 
 // This endpoint is called by Vercel Cron or manually from /admin
-// It fetches data from Holistics and stores it in Edge Config
+// It fetches data from Holistics and stores it in Supabase
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -53,16 +54,6 @@ export async function GET(request: Request) {
   if (!HOLISTICS_API_KEY) {
     return NextResponse.json(
       { error: "HOLISTICS_API_KEY not configured" },
-      { status: 500 }
-    );
-  }
-
-  const edgeConfigId = process.env.EDGE_CONFIG_ID;
-  const vercelApiToken = process.env.VERCEL_API_TOKEN;
-
-  if (!edgeConfigId || !vercelApiToken) {
-    return NextResponse.json(
-      { error: "Edge Config not configured (missing EDGE_CONFIG_ID or VERCEL_API_TOKEN)" },
       { status: 500 }
     );
   }
@@ -182,28 +173,27 @@ export async function GET(request: Request) {
       console.log(`[Cron] ${product}: $${arr.toFixed(0)} (growth: ${(growth * 100).toFixed(1)}%)`);
     }
 
-    // Store in Edge Config
-    console.log("[Cron] Saving to Edge Config...");
-    const edgeRes = await fetch(
-      `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${vercelApiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ items }),
-      }
-    );
+    // Store in Supabase
+    console.log("[Cron] Saving to Supabase...");
+    const rows = items.map((item) => ({
+      id: item.key,
+      arr: item.value.arr,
+      growth: item.value.growth,
+      month_growth: item.value.monthGrowth,
+      updated_at: item.value.updatedAt,
+    }));
 
-    if (!edgeRes.ok) {
-      const error = await edgeRes.json();
-      throw new Error(`Failed to save to Edge Config: ${JSON.stringify(error)}`);
+    const { error: upsertError } = await getSupabase()
+      .from("products")
+      .upsert(rows, { onConflict: "id" });
+
+    if (upsertError) {
+      throw new Error(`Failed to save to Supabase: ${upsertError.message}`);
     }
 
     console.log("[Cron] Holistics data refresh completed successfully");
 
-    // Build full config to return (avoids Edge Config cache delay)
+    // Build full config to return
     const freshConfig: Record<string, ProductConfig> = {};
     for (const item of items) {
       freshConfig[item.key] = item.value;
@@ -211,7 +201,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Holistics data saved to Edge Config",
+      message: "Holistics data saved to Supabase",
       currentMonth,
       previousMonth,
       products: items.map((i) => ({ key: i.key, arr: i.value.arr, monthGrowth: i.value.monthGrowth })),
