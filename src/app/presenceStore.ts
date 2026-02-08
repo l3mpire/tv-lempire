@@ -7,6 +7,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 let onlineUsers = new Set<string>();
 let channel: RealtimeChannel | null = null;
 const listeners = new Set<() => void>();
+let visibilityHandler: (() => void) | null = null;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -29,9 +30,21 @@ export function initPresence(userName: string) {
         await channel!.track({ userName });
       }
     });
+
+  // Re-track presence when page becomes visible (e.g. wake from sleep)
+  visibilityHandler = () => {
+    if (document.visibilityState === "visible" && channel) {
+      channel.track({ userName });
+    }
+  };
+  document.addEventListener("visibilitychange", visibilityHandler);
 }
 
 export function cleanupPresence() {
+  if (visibilityHandler) {
+    document.removeEventListener("visibilitychange", visibilityHandler);
+    visibilityHandler = null;
+  }
   if (!channel) return;
   const supabase = getSupabaseBrowser();
   supabase.removeChannel(channel);
