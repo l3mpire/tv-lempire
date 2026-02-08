@@ -8,9 +8,18 @@ let onlineUsers = new Set<string>();
 let channel: RealtimeChannel | null = null;
 const listeners = new Set<() => void>();
 let visibilityHandler: (() => void) | null = null;
+let lastOnlinePing = 0;
+const ONLINE_THROTTLE_MS = 60_000;
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+function pingOnline() {
+  const now = Date.now();
+  if (now - lastOnlinePing < ONLINE_THROTTLE_MS) return;
+  lastOnlinePing = now;
+  fetch("/api/auth/online", { method: "POST" }).catch(() => {});
 }
 
 export function initPresence(userName: string) {
@@ -28,6 +37,7 @@ export function initPresence(userName: string) {
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await channel!.track({ userName });
+        pingOnline();
       }
     });
 
@@ -35,6 +45,7 @@ export function initPresence(userName: string) {
   visibilityHandler = () => {
     if (document.visibilityState === "visible" && channel) {
       channel.track({ userName });
+      pingOnline();
     }
   };
   document.addEventListener("visibilitychange", visibilityHandler);

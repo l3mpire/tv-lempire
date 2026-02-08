@@ -82,6 +82,12 @@ export async function POST(request: NextRequest) {
     })
   );
 
+  // Update last_online timestamp
+  await supabase
+    .from("users")
+    .update({ last_online: new Date().toISOString() })
+    .eq("id", user.id);
+
   // Set session cookie with user UUID
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, user.id, {

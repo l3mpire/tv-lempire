@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from "react";
 type SettingsModalProps = {
   onClose: () => void;
   onLogout: () => void;
+  milestoneSound: boolean;
+  onToggleMilestoneSound: () => void;
 };
 
-export default function SettingsModal({ onClose, onLogout }: SettingsModalProps) {
+export default function SettingsModal({ onClose, onLogout, milestoneSound, onToggleMilestoneSound }: SettingsModalProps) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [originalName, setOriginalName] = useState("");
@@ -218,6 +220,25 @@ export default function SettingsModal({ onClose, onLogout }: SettingsModalProps)
               {pwFeedback.message}
             </div>
           )}
+        </div>
+
+        {/* Dashboard section */}
+        <div className="settings-section">
+          <h3>Dashboard</h3>
+          <div className="settings-field">
+            <label className="settings-toggle-row">
+              <span className="settings-label">Milestone sound</span>
+              <button
+                className={`settings-toggle${milestoneSound ? " settings-toggle-on" : ""}`}
+                onClick={onToggleMilestoneSound}
+                role="switch"
+                aria-checked={milestoneSound}
+              >
+                <span className="settings-toggle-knob" />
+              </button>
+            </label>
+            <div className="settings-hint">Play a sound when ARR crosses a milestone</div>
+          </div>
         </div>
 
         {/* Logout section */}

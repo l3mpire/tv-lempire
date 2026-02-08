@@ -608,6 +608,63 @@ body {
   background: transparent;
 }
 
+/* === VOLUME CONTROL === */
+.dash-volume-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.dash-volume-popup {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,10,10,0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px 8px;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+}
+
+.dash-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 3px;
+  height: 100px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.dash-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.dash-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.dash-volume-slider::-moz-range-track {
+  width: 3px;
+  border-radius: 2px;
+  background: transparent;
+}
+
 .dash-help-btn {
   width: 18px;
   height: 18px;
@@ -935,6 +992,45 @@ body {
 
 .settings-section-logout {
   text-align: center;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.settings-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+.settings-toggle-on {
+  background: var(--accent);
+}
+.settings-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+.settings-toggle-on .settings-toggle-knob {
+  transform: translateX(20px);
+}
+.settings-hint {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  margin-top: 0.25rem;
 }
 
 .settings-logout-btn {

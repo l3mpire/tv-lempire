@@ -33,8 +33,8 @@ type StatusBarProps = {
   onShowSettings: () => void;
   showVideo: boolean;
   onToggleVideo: () => void;
-  muted: boolean;
-  onToggleMuted: () => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
   videos: VideoInfo[];
   currentVideoIndex: number;
   onNextVideo: () => void;
@@ -154,7 +154,62 @@ const VideoPicker = memo(function VideoPicker({
   );
 });
 
-export default memo(function StatusBar({ now, onShowHelp, onShowSettings, showVideo, onToggleVideo, muted, onToggleMuted, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, tickerSpeed, onCycleTickerSpeed, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
+function VolumeControl({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="dash-volume-wrap" ref={ref}>
+      {open ? (
+        <button className="dash-video-toggle" onClick={() => setOpen(false)} aria-label="Volume">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            {volume > 50 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />}
+            {volume > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
+            {volume === 0 && <><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></>}
+          </svg>
+        </button>
+      ) : (
+        <Tooltip label={volume === 0 ? "Unmute" : "Volume"}>
+          <button className="dash-video-toggle" onClick={() => setOpen(true)} aria-label="Volume">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              {volume > 50 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />}
+              {volume > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
+              {volume === 0 && <><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></>}
+            </svg>
+          </button>
+        </Tooltip>
+      )}
+      {open && (
+        <div className="dash-volume-popup">
+          <input
+            type="range"
+            className="dash-volume-slider"
+            min={0}
+            max={100}
+            value={volume}
+            style={{ background: `linear-gradient(to top, var(--accent) ${volume}%, rgba(255,255,255,0.1) ${volume}%)` }}
+            onChange={(e) => onVolumeChange(Number(e.target.value))}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default memo(function StatusBar({ now, onShowHelp, onShowSettings, showVideo, onToggleVideo, volume, onVolumeChange, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, tickerSpeed, onCycleTickerSpeed, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
@@ -208,25 +263,7 @@ export default memo(function StatusBar({ now, onShowHelp, onShowSettings, showVi
           </button>
         </Tooltip>
         {showVideo && (
-          <Tooltip label={muted ? "Unmute" : "Mute"}>
-            <button className="dash-video-toggle" onClick={onToggleMuted} aria-label={muted ? "Unmute video" : "Mute video"}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {muted ? (
-                  <>
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <line x1="23" y1="9" x2="17" y2="15" />
-                    <line x1="17" y1="9" x2="23" y2="15" />
-                  </>
-                ) : (
-                  <>
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                  </>
-                )}
-              </svg>
-            </button>
-          </Tooltip>
+          <VolumeControl volume={volume} onVolumeChange={onVolumeChange} />
         )}
         {showVideo && videoBlocked && (
           <Tooltip label="Playback blocked — click to play">

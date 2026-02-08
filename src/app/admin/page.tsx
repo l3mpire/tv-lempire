@@ -57,12 +57,25 @@ function formatPercent(value: number, decimals = 1): string {
   return `${sign}${value.toFixed(decimals)}%`;
 }
 
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 type User = {
   id: string;
   name: string;
   email: string;
   is_admin: boolean;
   verified: boolean;
+  last_online: string | null;
   created_at: string;
 };
 
@@ -562,6 +575,9 @@ export default function AdminPage() {
                     <div>
                       <span className="text-zinc-200 font-medium">{user.name}</span>
                       <span className="text-zinc-500 text-sm ml-2">{user.email}</span>
+                      <span className="text-zinc-600 text-xs ml-2" title={user.last_online ?? "never"}>
+                        {timeAgo(user.last_online)}
+                      </span>
                     </div>
                     {user.is_admin && (
                       <span className="text-xs bg-amber-900/50 text-amber-400 border border-amber-800 px-2 py-0.5 rounded">

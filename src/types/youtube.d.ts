@@ -40,6 +40,8 @@ declare namespace YT {
     seekTo(seconds: number, allowSeekAhead?: boolean): void;
     mute(): void;
     unMute(): void;
+    setVolume(volume: number): void;
+    getVolume(): number;
     setLoop(loopPlaylists: boolean): void;
     setShuffle(shufflePlaylist: boolean): void;
     getPlayerState(): PlayerState;

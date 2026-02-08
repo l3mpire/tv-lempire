@@ -17,6 +17,7 @@ CREATE TABLE users (
   preferences JSONB NOT NULL DEFAULT '{}',
   reset_token TEXT,
   reset_token_expires_at TIMESTAMPTZ,
+  last_online TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

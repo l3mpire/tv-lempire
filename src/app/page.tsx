@@ -8,6 +8,7 @@ import BreakingNewsOverlay from "./BreakingNewsOverlay";
 import StatusBar from "./StatusBar";
 import SettingsModal from "./SettingsModal";
 import { useNow } from "./arrTickerStore";
+import { useMilestoneSound } from "./useMilestoneSound";
 import { initPresence, cleanupPresence } from "./presenceStore";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import type { ProductConfig, Config } from "@/lib/types";
@@ -204,7 +205,7 @@ function loadYouTubeAPI(): Promise<void> {
 const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
   showVideo: boolean;
   playlist: string;
-  muted: boolean;
+  volume: number;
   paused?: boolean;
   initialProgress: number;
   onProgressUpdate: (videoId: string, seconds: number) => void;
@@ -213,7 +214,7 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
 }>(function VideoBackground({
   showVideo,
   playlist,
-  muted,
+  volume,
   paused,
   initialProgress,
   onProgressUpdate,
@@ -268,7 +269,7 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
       const player = new YT.Player(el, {
         playerVars: {
           autoplay: 1,
-          mute: muted ? 1 : 0,
+          mute: volume === 0 ? 1 : 0,
           loop: 1,
           controls: 0,
           showinfo: 0,
@@ -286,6 +287,9 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
           onReady: () => {
             if (destroyed) return;
             player.setLoop(true);
+            player.setVolume(volume);
+            if (volume > 0) player.unMute();
+            else player.mute();
 
             // Check if autoplay was blocked after a short delay
             setTimeout(() => {
@@ -345,14 +349,15 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showVideo, playlist]);
 
-  // Mute / unmute without recreating the player
+  // Adjust volume without recreating the player
   useEffect(() => {
     if (!playerRef.current) return;
     try {
-      if (muted) playerRef.current.mute();
+      playerRef.current.setVolume(volume);
+      if (volume === 0) playerRef.current.mute();
       else playerRef.current.unMute();
     } catch { /* ignore */ }
-  }, [muted]);
+  }, [volume]);
 
   // Pause / resume without recreating the player
   useEffect(() => {
@@ -408,7 +413,7 @@ function ARRDashboard() {
   }, [searchParams]);
   const tvModeRef = useRef(tvMode);
   const [showVideo, setShowVideo] = useState(() => !searchParams.has("novideo"));
-  const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(0);
   const [tvStarted, setTvStarted] = useState(false);
   const [videoStarted, setVideoStarted] = useState(false);
   const [breakingNewsActive, setBreakingNewsActive] = useState(false);
@@ -418,6 +423,7 @@ function ARRDashboard() {
   const cinemaModeRef = useRef(false);
   const cinemaVideosRef = useRef<Record<string, number>>({});
   const [tickerSpeed, setTickerSpeed] = useState<1 | 3 | 10>(1);
+  const [milestoneSound, setMilestoneSound] = useState(true);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
   // Active playlist string for the iframe — only changes on initial load
@@ -494,8 +500,9 @@ function ARRDashboard() {
         setPlaylist(buildPlaylist(vids, idx));
       }
       if (typeof prefs.show_video === "boolean") setShowVideo(prefs.show_video);
-      if (typeof prefs.muted === "boolean") setMuted(prefs.muted);
+      if (typeof prefs.volume === "number") setVolume(prefs.volume);
       if (prefs.ticker_speed === 3 || prefs.ticker_speed === 10) setTickerSpeed(prefs.ticker_speed);
+      if (typeof prefs.milestone_sound === "boolean") setMilestoneSound(prefs.milestone_sound);
       if (prefs.cinema_videos && typeof prefs.cinema_videos === "object") {
         cinemaVideosRef.current = prefs.cinema_videos;
       }
@@ -504,7 +511,7 @@ function ARRDashboard() {
       // If ?video= param is present, enter cinema mode with that video
       if (videoParam) {
         setShowVideo(true);
-        setMuted(true);
+        setVolume(0);
         setCinemaMode(true);
         cinemaModeRef.current = true;
         setPlaylist(videoParam);
@@ -656,7 +663,7 @@ function ARRDashboard() {
   return (
     <div className="dash-wrapper">
       {/* Video background */}
-      {videosLoaded && <VideoBackground ref={videoPlayerRef} showVideo={showVideo} playlist={playlist} muted={muted} paused={breakingNewsActive} initialProgress={videoProgress} onProgressUpdate={saveVideoProgress} onPlaybackBlocked={setVideoBlocked} cinemaMode={cinemaMode} />}
+      {videosLoaded && <VideoBackground ref={videoPlayerRef} showVideo={showVideo} playlist={playlist} volume={volume} paused={breakingNewsActive} initialProgress={videoProgress} onProgressUpdate={saveVideoProgress} onPlaybackBlocked={setVideoBlocked} cinemaMode={cinemaMode} />}
 
       {/* Ambient background (hidden in cinema mode) */}
       {!cinemaMode && <AmbientBackground />}
@@ -696,17 +703,14 @@ function ARRDashboard() {
             return next;
           });
         }}
-        muted={muted}
-        onToggleMuted={() => {
-          setMuted((m) => {
-            const next = !m;
-            fetch("/api/preferences", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ muted: next }),
-            }).catch(() => {});
-            return next;
-          });
+        volume={volume}
+        onVolumeChange={(v: number) => {
+          setVolume(v);
+          fetch("/api/preferences", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ volume: v }),
+          }).catch(() => {});
         }}
         videos={videos}
         currentVideoIndex={currentVideoIndex}
@@ -728,6 +732,7 @@ function ARRDashboard() {
             return next as 1 | 3 | 10;
           });
         }}
+        milestoneSound={milestoneSound}
         cinemaMode={cinemaMode}
         onToggleCinemaMode={() => {
           setCinemaMode((c) => {
@@ -764,7 +769,7 @@ function ARRDashboard() {
       {tvMode && !tvStarted && !videoParam && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
-          onClick={() => { setTvStarted(true); setMuted(false); }}
+          onClick={() => { setTvStarted(true); setVolume(100); }}
         >
           <div className="text-center">
             <div className="text-6xl mb-6">▶</div>
@@ -779,7 +784,7 @@ function ARRDashboard() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
           onClick={() => {
             setVideoStarted(true);
-            setMuted(false);
+            setVolume(100);
             videoPlayerRef.current?.playVideo();
           }}
         >
@@ -798,6 +803,18 @@ function ARRDashboard() {
         <SettingsModal
           onClose={() => setShowSettings(false)}
           onLogout={handleLogout}
+          milestoneSound={milestoneSound}
+          onToggleMilestoneSound={() => {
+            setMilestoneSound((v) => {
+              const next = !v;
+              fetch("/api/preferences", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ milestone_sound: next }),
+              }).catch(() => {});
+              return next;
+            });
+          }}
         />
       )}
     </div>
@@ -811,8 +828,8 @@ function ARRDynamic({
   tvMode,
   showVideo,
   onToggleVideo,
-  muted,
-  onToggleMuted,
+  volume,
+  onVolumeChange,
   videos,
   currentVideoIndex,
   onNextVideo,
@@ -823,6 +840,7 @@ function ARRDynamic({
   onSaveProgress,
   tickerSpeed,
   onCycleTickerSpeed,
+  milestoneSound,
   cinemaMode,
   onToggleCinemaMode,
 }: {
@@ -832,8 +850,8 @@ function ARRDynamic({
   tvMode: boolean;
   showVideo: boolean;
   onToggleVideo: () => void;
-  muted: boolean;
-  onToggleMuted: () => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
   videos: { youtube_id: string; title: string }[];
   currentVideoIndex: number;
   onNextVideo: () => void;
@@ -844,6 +862,7 @@ function ARRDynamic({
   onSaveProgress: () => void;
   tickerSpeed: 1 | 3 | 10;
   onCycleTickerSpeed: () => void;
+  milestoneSound: boolean;
   cinemaMode: boolean;
   onToggleCinemaMode: () => void;
 }) {
@@ -882,6 +901,8 @@ function ARRDynamic({
     (tweethunterARR ?? 0);
   const totalBaseARR = PRODUCTS.reduce((sum, p) => sum + config[p].arr, 0);
   const totalMonthGrowth = PRODUCTS.reduce((sum, p) => sum + config[p].monthGrowth, 0);
+
+  useMilestoneSound(totalARR, milestoneSound);
 
   return (
     <>
@@ -949,7 +970,7 @@ function ARRDynamic({
       <NewsTicker tvMode={tvMode} cinemaMode={cinemaMode} scrollSpeed={tickerSpeed * 60} />
 
       {/* Status bar (hidden in TV mode) */}
-      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onShowSettings={onShowSettings} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
+      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onShowSettings={onShowSettings} showVideo={showVideo} onToggleVideo={onToggleVideo} volume={volume} onVolumeChange={onVolumeChange} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
     </>
   );
 }
