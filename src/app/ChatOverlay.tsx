@@ -39,6 +39,7 @@ export default memo(function ChatOverlay() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -54,7 +55,10 @@ export default memo(function ChatOverlay() {
         const res = await fetch("/api/auth/me");
         if (!res.ok) return;
         const data = await res.json();
-        if (data.user?.id) setCurrentUserId(data.user.id);
+        if (data.user?.id) {
+          setCurrentUserId(data.user.id);
+          setIsAdmin(!!data.user.isAdmin);
+        }
       } catch {
         // Not logged in
       }
@@ -217,6 +221,7 @@ export default memo(function ChatOverlay() {
                 time={relativeTime(msg.createdAt)}
                 content={msg.content}
                 isOwn={currentUserId === msg.userId}
+                isAdmin={isAdmin}
                 onDelete={handleDelete}
               />
             ))}

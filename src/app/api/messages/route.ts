@@ -134,7 +134,16 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (msg.user_id !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Check if user is admin
+    const { data: user } = await supabase
+      .from("users")
+      .select("is_admin")
+      .eq("id", userId)
+      .single();
+
+    if (!user?.is_admin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { error: deleteError } = await supabase

@@ -148,12 +148,12 @@ body {
 .dash-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(140px);
+  filter: blur(80px);
 }
 
 .dash-orb-1 {
-  width: 700px;
-  height: 700px;
+  width: 500px;
+  height: 500px;
   background: radial-gradient(circle, #00ff8810 0%, transparent 70%);
   top: -15%;
   right: -10%;
@@ -167,14 +167,7 @@ body {
 }
 
 .dash-noise {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  opacity: 0.012;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
+  display: none;
 }
 
 /* === LAYOUT === */
@@ -216,8 +209,7 @@ body {
 .product-card {
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 16px;
-  background: rgba(255,255,255,0.02);
-  backdrop-filter: blur(10px);
+  background: rgba(10,10,10,0.85);
   padding: 1.5rem 2rem;
   position: relative;
   overflow: hidden;
@@ -438,7 +430,7 @@ body {
   position: absolute;
   bottom: calc(100% + 12px);
   right: 0;
-  background: rgba(10,10,10,0.95);
+  background: rgba(10,10,10,0.97);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
   padding: 6px;
@@ -448,7 +440,6 @@ body {
   max-height: 500px;
   overflow-y: auto;
   width: 600px;
-  backdrop-filter: blur(12px);
   z-index: 10;
 }
 
@@ -584,8 +575,7 @@ body {
 .help-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.9);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -693,13 +683,12 @@ body {
 .login-card {
   position: relative;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(15, 15, 15, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 3rem;
   width: 100%;
   max-width: 380px;
-  backdrop-filter: blur(20px);
   animation: fadeInUp 0.6s ease-out;
   box-shadow: 0 0 80px rgba(255, 255, 255, 0.15), 0 0 120px rgba(255, 255, 255, 0.08);
 }
@@ -867,10 +856,9 @@ body {
   z-index: 10;
   width: 350px;
   height: 400px;
-  background: rgba(10, 10, 10, 0.92);
+  background: rgba(10, 10, 10, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1097,11 +1085,10 @@ body {
 
 /* Bottom bar — dark band with scrolling content */
 .news-ticker-bottom {
-  background: rgba(12, 12, 12, 0.95);
+  background: rgba(12, 12, 12, 0.97);
   border-top: 3px solid #cc0000;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 0.75rem 0;
-  backdrop-filter: blur(12px);
   overflow: hidden;
 }
 
@@ -1231,5 +1218,28 @@ body {
 
   .news-ticker-bottom {
     padding: 0.5rem 1rem;
+  }
+}
+
+/* === REDUCED MOTION === */
+@media (prefers-reduced-motion: reduce) {
+  .dash-orb-1,
+  .product-card,
+  .product-card::before,
+  .total-brand,
+  .total-label,
+  .total-amount,
+  .total-amount-glow,
+  .total-month-growth,
+  .dash-status-bar,
+  .dash-ticker-dot,
+  .news-ticker,
+  .news-ticker-label,
+  .loading-text {
+    animation: none !important;
+  }
+
+  .split-flap-char-inner.flipping {
+    animation: none !important;
   }
 }

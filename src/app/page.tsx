@@ -162,6 +162,19 @@ function HelpPopup({ onClose }: { onClose: () => void }) {
             <li><strong>Social Selling</strong> = Taplio + Tweet Hunter</li>
           </ul>
         </div>
+
+        <div className="help-section">
+          <h3>TV Mode</h3>
+          <p>
+            Append <strong>?tv</strong> to the URL to enable TV mode — designed for
+            display on a smart TV or large screen.
+          </p>
+          <p>
+            In this mode the status bar is hidden, only TV-enabled videos are
+            played, and the admin can push a video in real-time via the
+            &ldquo;Play now&rdquo; button.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -197,13 +210,10 @@ const VideoBackground = memo(function VideoBackground({
 
 const AmbientBackground = memo(function AmbientBackground() {
   return (
-    <>
-      <div className="dash-bg">
-        <div className="dash-orb dash-orb-1" />
-        <div className="dash-vignette" />
-      </div>
-      <div className="dash-noise" />
-    </>
+    <div className="dash-bg">
+      <div className="dash-orb dash-orb-1" />
+      <div className="dash-vignette" />
+    </div>
   );
 });
 
