@@ -1689,6 +1689,13 @@ body {
   }
 }
 
+/* === THIN SCROLLBARS === */
+body,
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
 /* === REDUCED MOTION === */
 @media (prefers-reduced-motion: reduce) {
   .dash-orb-1,

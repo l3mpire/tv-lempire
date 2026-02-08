@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { RealtimeChannel } from "@supabase/supabase-js";
+import Tooltip from "@/app/Tooltip";
 
 type ProductConfig = {
   arr: number;
@@ -154,29 +155,31 @@ function SortableVideoRow({
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <button
-          onClick={handlePlayNow}
-          disabled={playSent}
-          className={`px-2 py-1 rounded text-xs cursor-pointer transition-all border ${
-            playSent
-              ? "bg-green-900 text-green-300 border-green-700 scale-95"
-              : "bg-green-950 text-green-400 border-green-800 hover:bg-green-900 active:scale-95"
-          }`}
-          title="Force play on all TVs now"
-        >
-          {playSent ? "Sent ✓" : "Play now"}
-        </button>
-        <button
-          onClick={() => onToggleTV(video.id, !video.tv_enabled)}
-          className={`px-2 py-1 rounded text-xs transition-colors border ${
-            video.tv_enabled
-              ? "bg-blue-950 text-blue-400 border-blue-800 hover:bg-blue-900"
-              : "bg-zinc-900 text-zinc-500 border-zinc-700 hover:bg-zinc-800"
-          }`}
-          title={video.tv_enabled ? "Shown on TV" : "Hidden on TV"}
-        >
-          TV
-        </button>
+        <Tooltip label="Force play on all /?tv screens">
+          <button
+            onClick={handlePlayNow}
+            disabled={playSent}
+            className={`px-2 py-1 rounded text-xs cursor-pointer transition-all border ${
+              playSent
+                ? "bg-green-900 text-green-300 border-green-700 scale-95"
+                : "bg-green-950 text-green-400 border-green-800 hover:bg-green-900 active:scale-95"
+            }`}
+          >
+            {playSent ? "Sent ✓" : "Play now"}
+          </button>
+        </Tooltip>
+        <Tooltip label={video.tv_enabled ? "Shown on /?tv screens" : "Hidden on /?tv screens"}>
+          <button
+            onClick={() => onToggleTV(video.id, !video.tv_enabled)}
+            className={`px-2 py-1 rounded text-xs transition-colors border ${
+              video.tv_enabled
+                ? "bg-blue-950 text-blue-400 border-blue-800 hover:bg-blue-900"
+                : "bg-zinc-900 text-zinc-500 border-zinc-700 hover:bg-zinc-800"
+            }`}
+          >
+            TV
+          </button>
+        </Tooltip>
         <button
           onClick={() => onRemove(video.id)}
           className="px-3 py-1 rounded text-sm transition-colors bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
@@ -409,8 +412,7 @@ export default function AdminPage() {
     }
   }
 
-  async function fetchData() {
-    setLoading(true);
+  async function fetchConfig() {
     try {
       const res = await fetch("/api/config");
       const data = await res.json();
@@ -418,7 +420,6 @@ export default function AdminPage() {
     } catch (e) {
       console.error("Failed to fetch config:", e);
     }
-    setLoading(false);
   }
 
   async function refreshFromHolistics() {
@@ -435,7 +436,7 @@ export default function AdminPage() {
         // to avoid Edge Config cache delay
         setConfig(data.config as Config);
       } else {
-        await fetchData();
+        await fetchConfig();
       }
     } catch (e) {
       console.error("Failed to refresh from Holistics:", e);
@@ -444,11 +445,23 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    fetchData();
-    fetchUsers();
-    fetchCurrentUser();
-    fetchVideos();
+    document.body.style.overflow = 'auto';
+    return () => { document.body.style.overflow = ''; };
   }, []);
+
+  useEffect(() => {
+    Promise.all([fetchConfig(), fetchUsers(), fetchCurrentUser(), fetchVideos()])
+      .finally(() => setLoading(false));
+  }, []);
+
+  const sortedUsers = useMemo(() =>
+    [...users].sort((a, b) => {
+      if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
+      if (a.verified !== b.verified) return a.verified ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    }),
+    [users]
+  );
 
   if (loading || !config) {
     return (
@@ -466,7 +479,7 @@ export default function AdminPage() {
   const totalYoY = (Math.pow(1 + totalMoM / 100, 12) - 1) * 100;
 
   return (
-    <div className="fixed inset-0 bg-zinc-950 text-white p-8 overflow-y-auto">
+    <div className="min-h-screen bg-zinc-950 text-white p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold">Admin Panel</h1>
@@ -521,14 +534,7 @@ export default function AdminPage() {
             <span className="text-zinc-500">Loading users...</span>
           ) : (
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {[...users].sort((a, b) => {
-                // Admins first
-                if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
-                // Unverified second
-                if (a.verified !== b.verified) return a.verified ? 1 : -1;
-                // Alphabetical by name
-                return a.name.localeCompare(b.name);
-              }).map((user) => (
+              {sortedUsers.map((user) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
