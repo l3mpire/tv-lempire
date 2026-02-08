@@ -53,12 +53,14 @@ function VideoSeekBar({ playerRef, onSaveProgress }: { playerRef: React.RefObjec
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [live, setLive] = useState(false);
   const draggingRef = useRef(false);
 
   useEffect(() => {
     if (playerRef.current) {
       setCurrentTime(playerRef.current.getCurrentTime());
       setDuration(playerRef.current.getDuration());
+      setLive(playerRef.current.isLive());
     }
     const iv = setInterval(() => {
       if (!playerRef.current) return;
@@ -67,6 +69,7 @@ function VideoSeekBar({ playerRef, onSaveProgress }: { playerRef: React.RefObjec
         setDuration(playerRef.current.getDuration());
       }
       setPlaying(playerRef.current.getPlayerState() === 1);
+      setLive(playerRef.current.isLive());
     }, 500);
     return () => clearInterval(iv);
   }, [playerRef]);
@@ -83,6 +86,26 @@ function VideoSeekBar({ playerRef, onSaveProgress }: { playerRef: React.RefObjec
   };
 
   if (duration <= 0) return null;
+
+  if (live) {
+    return (
+      <div className="dash-video-seek">
+        <button className="dash-video-seek-playpause" onClick={togglePlayPause} aria-label={playing ? "Pause" : "Play"}>
+          {playing ? (
+            <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
+              <rect x="0" y="0" width="3" height="12" />
+              <rect x="7" y="0" width="3" height="12" />
+            </svg>
+          ) : (
+            <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
+              <polygon points="0,0 10,6 0,12" />
+            </svg>
+          )}
+        </button>
+        <span className="dash-video-live-badge">LIVE</span>
+      </div>
+    );
+  }
 
   const pct = (currentTime / duration) * 100;
 
@@ -147,6 +170,7 @@ const VideoPicker = memo(function VideoPicker({
             alt={v.title || v.youtube_id}
             className="dash-video-picker-thumb"
           />
+          {v.title && <span className="dash-video-picker-label">{v.title}</span>}
         </button>
       ))}
       <VideoSeekBar playerRef={playerRef} onSaveProgress={onSaveProgress} />

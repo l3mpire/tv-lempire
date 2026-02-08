@@ -92,13 +92,16 @@ function SortableVideoRow({
   onRemove,
   onToggleTV,
   onPlayNow,
+  onFetchTitle,
 }: {
   video: Video;
   onRemove: (id: number) => void;
   onToggleTV: (id: number, enabled: boolean) => void;
   onPlayNow: (youtubeId: string) => void;
+  onFetchTitle: (id: number) => void;
 }) {
   const [playSent, setPlaySent] = useState(false);
+  const [fetchingTitle, setFetchingTitle] = useState(false);
   const {
     attributes,
     listeners,
@@ -120,17 +123,23 @@ function SortableVideoRow({
     setTimeout(() => setPlaySent(false), 1500);
   };
 
+  const handleFetchTitle = async () => {
+    setFetchingTitle(true);
+    await onFetchTitle(video.id);
+    setFetchingTitle(false);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-zinc-500 hover:text-zinc-300 px-1 touch-none"
+          className="cursor-grab active:cursor-grabbing text-zinc-500 hover:text-zinc-300 px-1 touch-none flex-shrink-0"
           aria-label="Drag to reorder"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -143,16 +152,23 @@ function SortableVideoRow({
         <img
           src={`https://img.youtube.com/vi/${video.youtube_id}/default.jpg`}
           alt=""
-          className="w-20 h-15 rounded object-cover"
+          className="w-20 h-15 rounded object-cover flex-shrink-0"
         />
-        <div>
-          <span className="text-zinc-200 text-sm font-mono">{video.youtube_id}</span>
-          {video.title && (
-            <span className="text-zinc-500 text-sm ml-2">{video.title}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          {video.title ? (
+            <span className="text-zinc-200 text-sm truncate" title={video.title}>{video.title}</span>
+          ) : (
+            <button
+              onClick={handleFetchTitle}
+              disabled={fetchingTitle}
+              className="px-2 py-0.5 rounded text-xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700"
+            >
+              {fetchingTitle ? "..." : "Get title"}
+            </button>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <Tooltip label="Force play on all /?tv screens">
           <button
             onClick={handlePlayNow}
@@ -406,6 +422,23 @@ export default function AdminPage() {
       setVideoError("Failed to add video");
     }
     setAddingVideo(false);
+  }
+
+  async function fetchVideoTitle(id: number) {
+    try {
+      const res = await fetch("/api/videos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, fetch_title: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.videos) {
+        setVideos(data.videos);
+        broadcastVideosChanged();
+      }
+    } catch (e) {
+      console.error("Failed to fetch video title:", e);
+    }
   }
 
   async function removeVideo(id: number) {
@@ -684,6 +717,7 @@ export default function AdminPage() {
                         onRemove={removeVideo}
                         onToggleTV={toggleTVEnabled}
                         onPlayNow={broadcastPlayNow}
+                        onFetchTitle={fetchVideoTitle}
                       />
                     ))}
                   </div>

@@ -177,6 +177,7 @@ export type VideoPlayerHandle = {
   getCurrentTime: () => number;
   getDuration: () => number;
   getPlayerState: () => number;
+  isLive: () => boolean;
   playVideo: () => void;
   pauseVideo: () => void;
 };
@@ -237,6 +238,7 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
     getCurrentTime: () => { try { return playerRef.current?.getCurrentTime() ?? 0; } catch { return 0; } },
     getDuration: () => { try { return playerRef.current?.getDuration() ?? 0; } catch { return 0; } },
     getPlayerState: () => { try { return playerRef.current?.getPlayerState() ?? -1; } catch { return -1; } },
+    isLive: () => { try { return (playerRef.current as any)?.getVideoData?.()?.isLive ?? false; } catch { return false; } },
     playVideo: () => { try { playerRef.current?.playVideo(); } catch { /* ignore */ } },
     pauseVideo: () => { try { playerRef.current?.pauseVideo(); } catch { /* ignore */ } },
   }));

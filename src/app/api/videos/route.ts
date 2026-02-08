@@ -3,6 +3,20 @@ import { getSupabase } from "@/lib/supabase";
 import { extractYoutubeId } from "@/lib/linkify";
 import { requireAdmin } from "@/lib/auth";
 
+async function fetchYoutubeTitle(youtubeId: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtubeId}&format=json`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data.title || "";
+  } catch {
+    return "";
+  }
+}
+
 // GET: public — return videos ordered by position
 // ?tv=1 filters to tv_enabled videos only
 export async function GET(request: NextRequest) {
@@ -48,6 +62,21 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabase();
 
+  // Check for duplicate
+  const { data: existing } = await supabase
+    .from("videos")
+    .select("id")
+    .eq("youtube_id", youtubeId)
+    .limit(1)
+    .single();
+
+  if (existing) {
+    return NextResponse.json(
+      { error: "This video has already been added" },
+      { status: 409 }
+    );
+  }
+
   // Get max position
   const { data: maxRow } = await supabase
     .from("videos")
@@ -58,11 +87,13 @@ export async function POST(request: NextRequest) {
 
   const nextPosition = (maxRow?.position ?? -1) + 1;
 
+  const resolvedTitle = title || await fetchYoutubeTitle(youtubeId);
+
   const { data: video, error } = await supabase
     .from("videos")
     .insert({
       youtube_id: youtubeId,
-      title: title || "",
+      title: resolvedTitle,
       position: nextPosition,
     })
     .select("id, youtube_id, title, position, tv_enabled")
@@ -108,6 +139,37 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const supabase = getSupabase();
+
+  // Fetch title from YouTube for a single video
+  if ("id" in body && "fetch_title" in body) {
+    const { id } = body;
+    const { data: video } = await supabase
+      .from("videos")
+      .select("youtube_id")
+      .eq("id", id)
+      .single();
+
+    if (!video) {
+      return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    }
+
+    const title = await fetchYoutubeTitle(video.youtube_id);
+
+    if (title) {
+      await supabase.from("videos").update({ title }).eq("id", id);
+    }
+
+    const { data: videos, error: listError } = await supabase
+      .from("videos")
+      .select("id, youtube_id, title, position, tv_enabled")
+      .order("position", { ascending: true });
+
+    if (listError) {
+      return NextResponse.json({ error: "Failed to fetch videos" }, { status: 500 });
+    }
+
+    return NextResponse.json({ videos });
+  }
 
   // Toggle tv_enabled for a single video
   if ("id" in body && "tv_enabled" in body) {
