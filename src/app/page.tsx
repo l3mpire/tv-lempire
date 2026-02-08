@@ -6,27 +6,14 @@ import SplitFlapDisplay from "./SplitFlapDisplay";
 import NewsTicker from "./NewsTicker";
 import BreakingNewsOverlay from "./BreakingNewsOverlay";
 import StatusBar from "./StatusBar";
+import SettingsModal from "./SettingsModal";
 import { useNow } from "./arrTickerStore";
 import { initPresence, cleanupPresence } from "./presenceStore";
 import { getSupabaseBrowser } from "@/lib/supabase";
+import type { ProductConfig, Config } from "@/lib/types";
+import { extractYoutubeId } from "@/lib/linkify";
 
 export const dynamic = "force-dynamic";
-
-type ProductConfig = {
-  arr: number;
-  growth: number;
-  monthGrowth: number;
-  updatedAt: number;
-};
-
-type Config = {
-  lemlist: ProductConfig;
-  lemwarm: ProductConfig;
-  lemcal: ProductConfig;
-  claap: ProductConfig;
-  taplio: ProductConfig;
-  tweethunter: ProductConfig;
-};
 
 const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 type ProductKey = (typeof PRODUCTS)[number];
@@ -237,6 +224,8 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
   const playerRef = useRef<YT.Player | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialSeekDoneRef = useRef(false);
+  const initialProgressRef = useRef(initialProgress);
+  initialProgressRef.current = initialProgress;
   const onProgressUpdateRef = useRef(onProgressUpdate);
   onProgressUpdateRef.current = onProgressUpdate;
   const onPlaybackBlockedRef = useRef(onPlaybackBlocked);
@@ -298,12 +287,6 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
             if (destroyed) return;
             player.setLoop(true);
 
-            // Seek to saved progress on first load
-            if (!initialSeekDoneRef.current && initialProgress > 0) {
-              player.seekTo(initialProgress, true);
-            }
-            initialSeekDoneRef.current = true;
-
             // Check if autoplay was blocked after a short delay
             setTimeout(() => {
               if (destroyed || !playerRef.current) return;
@@ -332,6 +315,12 @@ const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
             if (destroyed) return;
             if (event.data === YT.PlayerState.PLAYING) {
               onPlaybackBlockedRef.current(false);
+              // Seek to saved progress on first PLAYING event
+              // (onReady is too early — autoplay can override the seek)
+              if (!initialSeekDoneRef.current && initialProgressRef.current > 0) {
+                player.seekTo(initialProgressRef.current, true);
+              }
+              initialSeekDoneRef.current = true;
             }
           },
         },
@@ -397,6 +386,7 @@ const AmbientBackground = memo(function AmbientBackground() {
 function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [videos, setVideos] = useState<{ youtube_id: string; title: string }[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [videoProgress, setVideoProgress] = useState(0);
@@ -412,10 +402,15 @@ function ARRDashboard() {
     return new URLSearchParams(window.location.search);
   }, []);
   const tvMode = useMemo(() => searchParams.has("tv"), [searchParams]);
+  const videoParam = useMemo(() => {
+    const v = searchParams.get("video");
+    return v ? extractYoutubeId(v) : null;
+  }, [searchParams]);
   const tvModeRef = useRef(tvMode);
   const [showVideo, setShowVideo] = useState(() => !searchParams.has("novideo"));
   const [muted, setMuted] = useState(true);
   const [tvStarted, setTvStarted] = useState(false);
+  const [videoStarted, setVideoStarted] = useState(false);
   const [breakingNewsActive, setBreakingNewsActive] = useState(false);
   const [videoBlocked, setVideoBlocked] = useState(false);
   const [cinemaMode, setCinemaMode] = useState(false);
@@ -505,6 +500,16 @@ function ARRDashboard() {
         cinemaVideosRef.current = prefs.cinema_videos;
       }
       setVideosLoaded(true);
+
+      // If ?video= param is present, enter cinema mode with that video
+      if (videoParam) {
+        setShowVideo(true);
+        setMuted(true);
+        setCinemaMode(true);
+        cinemaModeRef.current = true;
+        setPlaylist(videoParam);
+        setVideoProgress(0);
+      }
     });
   }, []);
 
@@ -548,6 +553,11 @@ function ARRDashboard() {
       cinemaModeRef.current = true;
       setVideoProgress(savedProgress);
       setPlaylist(youtubeId);
+
+      // Update browser URL for easy copy-paste sharing
+      const url = new URL(window.location.href);
+      url.searchParams.set("video", youtubeId);
+      window.history.replaceState({}, "", url.toString());
     };
     window.addEventListener("playYouTube", handler);
     return () => window.removeEventListener("playYouTube", handler);
@@ -654,7 +664,7 @@ function ARRDashboard() {
       <ARRDynamic
         config={config}
         onShowHelp={() => setShowHelp(true)}
-        onLogout={handleLogout}
+        onShowSettings={() => setShowSettings(true)}
         tvMode={tvMode}
         showVideo={showVideo}
         onToggleVideo={() => {
@@ -671,6 +681,12 @@ function ARRDashboard() {
               }
               setCinemaMode(false);
               cinemaModeRef.current = false;
+              // Clean ?video= from URL
+              const url = new URL(window.location.href);
+              if (url.searchParams.has("video")) {
+                url.searchParams.delete("video");
+                window.history.replaceState({}, "", url.pathname + url.search);
+              }
             }
             fetch("/api/preferences", {
               method: "PATCH",
@@ -715,13 +731,21 @@ function ARRDashboard() {
         cinemaMode={cinemaMode}
         onToggleCinemaMode={() => {
           setCinemaMode((c) => {
-            if (c && preCinemaRef.current) {
+            if (c) {
               // Exiting cinema mode — restore previous video
-              const snap = preCinemaRef.current;
-              preCinemaRef.current = null;
-              setCurrentVideoIndex(snap.index);
-              setVideoProgress(snap.progress);
-              setPlaylist(snap.playlist);
+              if (preCinemaRef.current) {
+                const snap = preCinemaRef.current;
+                preCinemaRef.current = null;
+                setCurrentVideoIndex(snap.index);
+                setVideoProgress(snap.progress);
+                setPlaylist(snap.playlist);
+              }
+              // Clean ?video= from URL
+              const url = new URL(window.location.href);
+              if (url.searchParams.has("video")) {
+                url.searchParams.delete("video");
+                window.history.replaceState({}, "", url.pathname + url.search);
+              }
             }
             cinemaModeRef.current = !c;
             return !c;
@@ -736,7 +760,7 @@ function ARRDashboard() {
       />
 
       {/* TV start overlay — click to unmute */}
-      {tvMode && !tvStarted && (
+      {tvMode && !tvStarted && !videoParam && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
           onClick={() => { setTvStarted(true); setMuted(false); }}
@@ -748,8 +772,33 @@ function ARRDashboard() {
         </div>
       )}
 
+      {/* Video param start overlay — click to unmute */}
+      {videoParam && !videoStarted && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
+          onClick={() => {
+            setVideoStarted(true);
+            setMuted(false);
+            videoPlayerRef.current?.playVideo();
+          }}
+        >
+          <div className="text-center">
+            <div className="text-6xl mb-6">▶</div>
+            <div className="text-2xl font-bold text-white">Click to play</div>
+          </div>
+        </div>
+      )}
+
       {/* Help popup */}
       {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
+
+      {/* Settings modal */}
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onLogout={handleLogout}
+        />
+      )}
     </div>
   );
 }
@@ -757,7 +806,7 @@ function ARRDashboard() {
 function ARRDynamic({
   config,
   onShowHelp,
-  onLogout,
+  onShowSettings,
   tvMode,
   showVideo,
   onToggleVideo,
@@ -778,7 +827,7 @@ function ARRDynamic({
 }: {
   config: Config;
   onShowHelp: () => void;
-  onLogout: () => void;
+  onShowSettings: () => void;
   tvMode: boolean;
   showVideo: boolean;
   onToggleVideo: () => void;
@@ -899,7 +948,7 @@ function ARRDynamic({
       <NewsTicker tvMode={tvMode} cinemaMode={cinemaMode} scrollSpeed={tickerSpeed * 60} />
 
       {/* Status bar (hidden in TV mode) */}
-      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
+      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onShowSettings={onShowSettings} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
     </>
   );
 }

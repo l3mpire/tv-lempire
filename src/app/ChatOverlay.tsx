@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, memo } from "react";
-import { createClient, RealtimeChannel } from "@supabase/supabase-js";
+import { RealtimeChannel } from "@supabase/supabase-js";
+import { getSupabaseBrowser } from "@/lib/supabase";
 import ChatMessage from "./ChatMessage";
 import Tooltip from "./Tooltip";
 import { useOnlineUsers } from "./presenceStore";
@@ -24,15 +25,6 @@ function relativeTime(dateStr: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
-}
-
-// Create browser Supabase client once (module scope, client-side only)
-function createBrowserSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url, key);
 }
 
 export default memo(function ChatOverlay() {
@@ -116,8 +108,7 @@ export default memo(function ChatOverlay() {
     fetchMessages();
 
     // 2. Subscribe to broadcast channel
-    const supabase = createBrowserSupabase();
-    if (!supabase) return;
+    const supabase = getSupabaseBrowser();
 
     const channel = supabase
       .channel("chat")

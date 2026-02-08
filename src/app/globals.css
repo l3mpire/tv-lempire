@@ -786,6 +786,175 @@ body {
   font-weight: 500;
 }
 
+/* === SETTINGS MODAL === */
+.settings-modal {
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  max-width: 420px;
+  width: 90%;
+  position: relative;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.settings-modal h2 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 1.3rem;
+  color: white;
+  margin-bottom: 1.5rem;
+}
+
+.settings-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.settings-section h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}
+
+.settings-field {
+  margin-bottom: 0.75rem;
+}
+
+.settings-field:last-child {
+  margin-bottom: 0;
+}
+
+.settings-label {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.4rem;
+}
+
+.settings-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  color: white;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.settings-input:focus {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.settings-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-inline {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-inline .settings-input {
+  flex: 1;
+}
+
+.settings-save-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: black;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.settings-save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--accent-dim);
+}
+
+.settings-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-save-btn-full {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.settings-feedback {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.settings-feedback-success {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.settings-feedback-error {
+  color: var(--negative);
+  background: var(--negative-dim);
+}
+
+.settings-section-logout {
+  text-align: center;
+}
+
+.settings-logout-btn {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--negative);
+  background: transparent;
+  border: 1px solid var(--negative-dim);
+  border-radius: 8px;
+  padding: 0.6rem 2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-logout-btn:hover {
+  background: var(--negative-dim);
+  border-color: var(--negative);
+}
+
 /* === LOGIN PAGE === */
 .login-wrapper {
   position: fixed;

@@ -1,22 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/auth";
-
-type ProductConfig = {
-  arr: number;
-  growth: number;
-  monthGrowth: number;
-  updatedAt: number;
-};
-
-type Config = {
-  lemlist: ProductConfig;
-  lemwarm: ProductConfig;
-  lemcal: ProductConfig;
-  claap: ProductConfig;
-  taplio: ProductConfig;
-  tweethunter: ProductConfig;
-};
+import type { ProductConfig, Config } from "@/lib/types";
 
 const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 

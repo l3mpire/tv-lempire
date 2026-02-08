@@ -15,6 +15,8 @@ CREATE TABLE users (
   password_hash TEXT NOT NULL,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   preferences JSONB NOT NULL DEFAULT '{}',
+  reset_token TEXT,
+  reset_token_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

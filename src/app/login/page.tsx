@@ -9,7 +9,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const router = useRouter();
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setForgotSent(true);
+      } else {
+        setError("Something went wrong");
+      }
+    } catch {
+      setError("Connection error");
+    } finally {
+      setForgotLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,49 +75,102 @@ export default function LoginPage() {
         <div className="login-brand">lempire</div>
         <div className="login-title">Ready to groove ?</div>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="login-field">
-            <label htmlFor="email" className="login-label">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="login-input"
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-              autoFocus
-            />
-          </div>
+        {forgotMode ? (
+          forgotSent ? (
+            <div className="login-form">
+              <p style={{ color: "rgba(255,255,255,0.6)", textAlign: "center", margin: "16px 0" }}>
+                If this email is registered, you will receive a reset link shortly.
+              </p>
+              <div className="login-link">
+                <a href="#" onClick={(e) => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(""); }}>
+                  Back to login
+                </a>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} className="login-form">
+              <div className="login-field">
+                <label htmlFor="email" className="login-label">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="login-input"
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
 
-          <div className="login-field">
-            <label htmlFor="password" className="login-label">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="login-input"
-              placeholder="••••••••"
-              required
-            />
-          </div>
+              {error && <div className="login-error">{error}</div>}
 
-          {error && <div className="login-error">{error}</div>}
+              <button
+                type="submit"
+                className="login-button"
+                disabled={forgotLoading}
+              >
+                {forgotLoading ? "..." : "Send reset link"}
+              </button>
 
-          <button
-            type="submit"
-            className="login-button"
-            disabled={loading}
-          >
-            {loading ? "..." : "Sign In"}
-          </button>
+              <div className="login-link">
+                <a href="#" onClick={(e) => { e.preventDefault(); setForgotMode(false); setError(""); }}>
+                  Back to login
+                </a>
+              </div>
+            </form>
+          )
+        ) : (
+          <form onSubmit={handleSubmit} className="login-form">
+            <div className="login-field">
+              <label htmlFor="email" className="login-label">Email</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="login-input"
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+                autoFocus
+              />
+            </div>
 
-          <div className="login-link">
-            <Link href="/signup">No account? Sign up</Link>
-          </div>
-        </form>
+            <div className="login-field">
+              <label htmlFor="password" className="login-label">Password</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-input"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            {error && <div className="login-error">{error}</div>}
+
+            <button
+              type="submit"
+              className="login-button"
+              disabled={loading}
+            >
+              {loading ? "..." : "Sign In"}
+            </button>
+
+            <div className="login-link">
+              <a href="#" onClick={(e) => { e.preventDefault(); setForgotMode(true); setError(""); }}>
+                Forgot password?
+              </a>
+            </div>
+            <div className="login-link">
+              <Link href="/signup">No account? Sign up</Link>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

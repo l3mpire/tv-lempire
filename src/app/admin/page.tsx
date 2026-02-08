@@ -20,22 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import Tooltip from "@/app/Tooltip";
-
-type ProductConfig = {
-  arr: number;
-  growth: number;
-  monthGrowth: number;
-  updatedAt: number;
-};
-
-type Config = {
-  lemlist: ProductConfig;
-  lemwarm: ProductConfig;
-  lemcal: ProductConfig;
-  claap: ProductConfig;
-  taplio: ProductConfig;
-  tweethunter: ProductConfig;
-};
+import type { ProductConfig, Config } from "@/lib/types";
 
 const PRODUCTS = [
   { key: "lemlist", label: "lemlist" },
@@ -203,6 +188,7 @@ export default function AdminPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [videoError, setVideoError] = useState<string | null>(null);
   const [addingVideo, setAddingVideo] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
 
   const videosChannelRef = useRef<RealtimeChannel | null>(null);
   const chatChannelRef = useRef<RealtimeChannel | null>(null);
@@ -476,6 +462,14 @@ export default function AdminPage() {
     [users]
   );
 
+  const filteredUsers = useMemo(() => {
+    if (!userSearch) return sortedUsers;
+    const q = userSearch.toLowerCase();
+    return sortedUsers.filter(u =>
+      u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    );
+  }, [sortedUsers, userSearch]);
+
   if (loading || !config) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
@@ -542,12 +536,24 @@ export default function AdminPage() {
 
         {/* USERS */}
         <div className="border border-zinc-800 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
-          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users <span className="text-zinc-500 font-mono text-sm font-normal">{users.length}</span></h2>
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users <span className="ml-2 px-2 py-0.5 text-xs font-mono font-normal text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-full">{users.length}</span></h2>
+          <input
+            type="text"
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+            placeholder="Search by name or email..."
+            className="w-full px-3 py-2 mb-4 bg-zinc-900 border border-zinc-700 rounded text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+          />
+          {userSearch && (
+            <div className="text-zinc-500 text-xs mb-2 font-mono">
+              {filteredUsers.length} / {users.length} users
+            </div>
+          )}
           {users.length === 0 ? (
             <span className="text-zinc-500">Loading users...</span>
           ) : (
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {sortedUsers.map((user) => (
+              {filteredUsers.map((user) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
@@ -617,7 +623,7 @@ export default function AdminPage() {
 
         {/* BACKGROUND VIDEOS */}
         <div className="border border-zinc-800 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
-          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos <span className="text-zinc-500 font-mono text-sm font-normal">{videos.length}</span></h2>
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos <span className="ml-2 px-2 py-0.5 text-xs font-mono font-normal text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-full">{videos.length}</span></h2>
 
           <div className="flex gap-2 mb-4">
             <input

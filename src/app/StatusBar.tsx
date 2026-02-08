@@ -30,7 +30,7 @@ function formatTime(s: number): string {
 type StatusBarProps = {
   now: number;
   onShowHelp: () => void;
-  onLogout: () => void;
+  onShowSettings: () => void;
   showVideo: boolean;
   onToggleVideo: () => void;
   muted: boolean;
@@ -154,7 +154,7 @@ const VideoPicker = memo(function VideoPicker({
   );
 });
 
-export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, onToggleVideo, muted, onToggleMuted, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, tickerSpeed, onCycleTickerSpeed, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
+export default memo(function StatusBar({ now, onShowHelp, onShowSettings, showVideo, onToggleVideo, muted, onToggleMuted, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, tickerSpeed, onCycleTickerSpeed, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
@@ -339,8 +339,13 @@ export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, o
         <Tooltip label="Help">
           <button className="dash-help-btn" onClick={onShowHelp}>?</button>
         </Tooltip>
-        <Tooltip label="Sign out">
-          <button className="dash-logout-btn" onClick={onLogout}>Logout</button>
+        <Tooltip label="Settings">
+          <button className="dash-video-toggle" onClick={onShowSettings} aria-label="Settings">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
         </Tooltip>
       </div>
     </div>

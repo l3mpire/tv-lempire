@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { createClient, RealtimeChannel } from "@supabase/supabase-js";
+import { RealtimeChannel } from "@supabase/supabase-js";
+import { getSupabaseBrowser } from "@/lib/supabase";
 import LinkedContent from "./LinkedContent";
 
 type Message = {
@@ -12,13 +13,6 @@ type Message = {
   createdAt: string;
   isBreakingNews?: boolean;
 };
-
-function createBrowserSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
-}
 
 const DEFAULT_SCROLL_SPEED = 60; // pixels per second
 
@@ -66,8 +60,7 @@ export default function NewsTicker({ tvMode = false, cinemaMode = false, scrollS
     };
     fetchMessages();
 
-    const supabase = createBrowserSupabase();
-    if (!supabase) return;
+    const supabase = getSupabaseBrowser();
 
     const channel = supabase
       .channel("chat")
@@ -181,38 +174,24 @@ export default function NewsTicker({ tvMode = false, cinemaMode = false, scrollS
       </div>
       <div className="news-ticker-bottom">
         <div ref={trackRef} className="news-ticker-track">
-          <div ref={groupRef} className="news-ticker-group">
-            {renderMessages.map((msg) => (
-              <span key={msg.id} className="news-ticker-item">
-                {msg.isBreakingNews && (
-                  <span className="news-ticker-badge-bn">BREAKING</span>
-                )}
-                {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
-                  <span className="news-ticker-badge-new">🔥 new</span>
-                )}
-                {!msg.isBreakingNews && (
-                  <span className="news-ticker-name">{msg.userName}</span>
-                )}
-                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}><LinkedContent content={msg.content} /></span>
-              </span>
-            ))}
-          </div>
-          <div className="news-ticker-group">
-            {renderMessages.map((msg) => (
-              <span key={`dup-${msg.id}`} className="news-ticker-item">
-                {msg.isBreakingNews && (
-                  <span className="news-ticker-badge-bn">BREAKING</span>
-                )}
-                {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
-                  <span className="news-ticker-badge-new">🔥 new</span>
-                )}
-                {!msg.isBreakingNews && (
-                  <span className="news-ticker-name">{msg.userName}</span>
-                )}
-                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}><LinkedContent content={msg.content} /></span>
-              </span>
-            ))}
-          </div>
+          {[false, true].map((isDup) => (
+            <div key={isDup ? "dup" : "main"} ref={isDup ? undefined : groupRef} className="news-ticker-group">
+              {renderMessages.map((msg) => (
+                <span key={isDup ? `dup-${msg.id}` : msg.id} className="news-ticker-item">
+                  {msg.isBreakingNews && (
+                    <span className="news-ticker-badge-bn">BREAKING</span>
+                  )}
+                  {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
+                    <span className="news-ticker-badge-new">🔥 new</span>
+                  )}
+                  {!msg.isBreakingNews && (
+                    <span className="news-ticker-name">{msg.userName}</span>
+                  )}
+                  <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}><LinkedContent content={msg.content} /></span>
+                </span>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>

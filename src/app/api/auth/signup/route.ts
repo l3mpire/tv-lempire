@@ -6,7 +6,7 @@ import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
 import { SESSION_COOKIE, escapeHtml } from "@/lib/auth";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
-const ALLOWED_DOMAIN = "lempire.co";
+const ALLOWED_DOMAINS = ["lempire.co", "claap.io", "lemlist.com"];
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; name?: string; password?: string };
@@ -32,12 +32,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Restrict to @lempire.co emails
+  // Restrict to allowed domains
   const normalizedEmail = email.toLowerCase().trim();
   const domain = normalizedEmail.split("@")[1];
-  if (domain !== ALLOWED_DOMAIN) {
+  if (!ALLOWED_DOMAINS.includes(domain)) {
     return NextResponse.json(
-      { error: "Only @lempire.co email addresses are allowed" },
+      { error: `Only @${ALLOWED_DOMAINS.join(", @")} email addresses are allowed` },
       { status: 403 }
     );
   }

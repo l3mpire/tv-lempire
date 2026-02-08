@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { postToSlack } from "@/lib/slack";
 const MAX_CONTENT_LENGTH = 500;
 
 export async function GET(request: NextRequest) {
@@ -106,6 +107,9 @@ export async function POST(request: NextRequest) {
   if (insertError || !msg) {
     return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
+
+  // Fire-and-forget: forward to Slack
+  postToSlack(user.name, content, isBreakingNews).catch(console.error);
 
   return NextResponse.json({
     message: {

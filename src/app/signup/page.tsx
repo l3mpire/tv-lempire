@@ -77,7 +77,7 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="login-input"
-              placeholder="you@lempire.co"
+              placeholder="you@company.com"
               required
               autoComplete="email"
             />

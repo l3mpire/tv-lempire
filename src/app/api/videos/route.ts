@@ -156,16 +156,16 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "order must contain exactly all video IDs" }, { status: 400 });
   }
 
-  // Update positions
-  for (let i = 0; i < order.length; i++) {
-    const { error } = await supabase
-      .from("videos")
-      .update({ position: i })
-      .eq("id", order[i]);
+  // Update positions (parallel batch)
+  const results = await Promise.all(
+    order.map((id: number, i: number) =>
+      supabase.from("videos").update({ position: i }).eq("id", id)
+    )
+  );
 
-    if (error) {
-      return NextResponse.json({ error: "Failed to update video position" }, { status: 500 });
-    }
+  const failed = results.find((r) => r.error);
+  if (failed) {
+    return NextResponse.json({ error: "Failed to update video position" }, { status: 500 });
   }
 
   // Return updated list

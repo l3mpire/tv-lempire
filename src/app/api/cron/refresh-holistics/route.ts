@@ -15,12 +15,7 @@ type HolisticsQueryResult = {
   error?: string;
 };
 
-type ProductConfig = {
-  arr: number;
-  growth: number;
-  monthGrowth: number;
-  updatedAt: number;
-};
+import type { ProductConfig } from "@/lib/types";
 
 // This endpoint is called by Vercel Cron or manually from /admin
 // It fetches data from Holistics and stores it in Supabase
