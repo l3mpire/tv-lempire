@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -17,6 +17,8 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { getSupabaseBrowser } from "@/lib/supabase";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 type ProductConfig = {
   arr: number;
@@ -90,11 +92,14 @@ function SortableVideoRow({
   video,
   onRemove,
   onToggleTV,
+  onPlayNow,
 }: {
   video: Video;
   onRemove: (id: number) => void;
   onToggleTV: (id: number, enabled: boolean) => void;
+  onPlayNow: (youtubeId: string) => void;
 }) {
+  const [playSent, setPlaySent] = useState(false);
   const {
     attributes,
     listeners,
@@ -108,6 +113,12 @@ function SortableVideoRow({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+  };
+
+  const handlePlayNow = () => {
+    onPlayNow(video.youtube_id);
+    setPlaySent(true);
+    setTimeout(() => setPlaySent(false), 1500);
   };
 
   return (
@@ -144,6 +155,18 @@ function SortableVideoRow({
       </div>
       <div className="flex items-center gap-3">
         <button
+          onClick={handlePlayNow}
+          disabled={playSent}
+          className={`px-2 py-1 rounded text-xs cursor-pointer transition-all border ${
+            playSent
+              ? "bg-green-900 text-green-300 border-green-700 scale-95"
+              : "bg-green-950 text-green-400 border-green-800 hover:bg-green-900 active:scale-95"
+          }`}
+          title="Force play on all TVs now"
+        >
+          {playSent ? "Sent ✓" : "Play now"}
+        </button>
+        <button
           onClick={() => onToggleTV(video.id, !video.tv_enabled)}
           className={`px-2 py-1 rounded text-xs transition-colors border ${
             video.tv_enabled
@@ -178,6 +201,24 @@ export default function AdminPage() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [addingVideo, setAddingVideo] = useState(false);
 
+  const videosChannelRef = useRef<RealtimeChannel | null>(null);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    const channel = supabase.channel("videos");
+    channel.subscribe();
+    videosChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const broadcastVideosChanged = useCallback(() => {
+    videosChannelRef.current?.send({ type: "broadcast", event: "videos_changed", payload: {} });
+  }, []);
+
+  const broadcastPlayNow = useCallback((youtubeId: string) => {
+    videosChannelRef.current?.send({ type: "broadcast", event: "play_now", payload: { youtube_id: youtubeId } });
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
@@ -197,12 +238,14 @@ export default function AdminPage() {
       if (!res.ok) {
         setVideos(previous);
         console.error("Failed to reorder videos");
+      } else {
+        broadcastVideosChanged();
       }
     } catch (e) {
       setVideos(previous);
       console.error("Failed to reorder videos:", e);
     }
-  }, [videos]);
+  }, [videos, broadcastVideosChanged]);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -227,6 +270,8 @@ export default function AdminPage() {
       if (!res.ok) {
         setVideos(previous);
         console.error("Failed to toggle TV mode");
+      } else {
+        broadcastVideosChanged();
       }
     } catch (e) {
       setVideos(previous);
@@ -339,6 +384,7 @@ export default function AdminPage() {
       } else {
         setVideoUrl("");
         await fetchVideos();
+        broadcastVideosChanged();
       }
     } catch (e) {
       console.error("Failed to add video:", e);
@@ -356,6 +402,7 @@ export default function AdminPage() {
       });
       if (res.ok) {
         await fetchVideos();
+        broadcastVideosChanged();
       }
     } catch (e) {
       console.error("Failed to remove video:", e);
@@ -595,6 +642,7 @@ export default function AdminPage() {
                         video={video}
                         onRemove={removeVideo}
                         onToggleTV={toggleTVEnabled}
+                        onPlayNow={broadcastPlayNow}
                       />
                     ))}
                   </div>

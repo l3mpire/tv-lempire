@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, memo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
 import NewsTicker from "./NewsTicker";
 import StatusBar from "./StatusBar";
 import { useNow } from "./arrTickerStore";
+import { getSupabaseBrowser } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -224,8 +225,33 @@ function ARRDashboard() {
     return new URLSearchParams(window.location.search);
   }, []);
   const tvMode = useMemo(() => searchParams.has("tv"), [searchParams]);
+  const tvModeRef = useRef(tvMode);
   const [showVideo, setShowVideo] = useState(() => !searchParams.has("novideo"));
   const [muted, setMuted] = useState(true);
+  const [tvStarted, setTvStarted] = useState(false);
+
+  // Active playlist string for the iframe — only changes on initial load
+  // or explicit user action (next/prev/select), NOT on realtime updates,
+  // so the currently playing video is never interrupted.
+  const [playlist, setPlaylist] = useState("");
+
+  const buildPlaylist = useCallback((vids: { youtube_id: string }[], index: number) => {
+    if (vids.length === 0) return "";
+    const ids = vids.map((v) => v.youtube_id);
+    const rotated = [...ids.slice(index), ...ids.slice(0, index)];
+    return rotated.join(",");
+  }, []);
+
+  // Fetch videos without touching the active playlist (used by realtime)
+  const fetchVideos = useCallback(async () => {
+    const url = tvModeRef.current ? "/api/videos?tv=1" : "/api/videos";
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      const newVids = (data.videos || []).map((v: { youtube_id: string; title: string }) => ({ youtube_id: v.youtube_id, title: v.title }));
+      setVideos(newVids);
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     // Try localStorage first (local dev fallback), then API
@@ -253,22 +279,34 @@ function ARRDashboard() {
       if (videoData.videos?.length) {
         const vids = videoData.videos.map((v: { youtube_id: string; title: string }) => ({ youtube_id: v.youtube_id, title: v.title }));
         setVideos(vids);
+        let idx = 0;
         if (typeof prefs.current_video === "string") {
-          const idx = vids.findIndex((v: { youtube_id: string }) => v.youtube_id === prefs.current_video);
-          if (idx >= 0) setCurrentVideoIndex(idx);
+          const found = vids.findIndex((v: { youtube_id: string }) => v.youtube_id === prefs.current_video);
+          if (found >= 0) idx = found;
         }
+        setCurrentVideoIndex(idx);
+        setPlaylist(buildPlaylist(vids, idx));
       }
       if (typeof prefs.show_video === "boolean") setShowVideo(prefs.show_video);
       if (typeof prefs.muted === "boolean") setMuted(prefs.muted);
     });
   }, []);
 
-  const playlist = useMemo(() => {
-    if (videos.length === 0) return "";
-    const ids = videos.map((v) => v.youtube_id);
-    const rotated = [...ids.slice(currentVideoIndex), ...ids.slice(0, currentVideoIndex)];
-    return rotated.join(",");
-  }, [videos, currentVideoIndex]);
+  // Subscribe to realtime video changes from admin
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    const channel = supabase.channel("videos")
+      .on("broadcast", { event: "videos_changed" }, () => {
+        fetchVideos();
+      })
+      .on("broadcast", { event: "play_now" }, ({ payload }) => {
+        if (!tvModeRef.current) return;
+        const { youtube_id } = payload;
+        if (youtube_id) setPlaylist(youtube_id);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchVideos]);
 
   const saveCurrentVideo = useCallback((youtubeId: string) => {
     fetch("/api/preferences", {
@@ -282,22 +320,25 @@ function ARRDashboard() {
     setCurrentVideoIndex((i) => {
       const next = videos.length > 0 ? (i + 1) % videos.length : 0;
       saveCurrentVideo(videos[next]?.youtube_id);
+      setPlaylist(buildPlaylist(videos, next));
       return next;
     });
-  }, [videos, saveCurrentVideo]);
+  }, [videos, saveCurrentVideo, buildPlaylist]);
 
   const handlePrevVideo = useCallback(() => {
     setCurrentVideoIndex((i) => {
       const next = videos.length > 0 ? (i - 1 + videos.length) % videos.length : 0;
       saveCurrentVideo(videos[next]?.youtube_id);
+      setPlaylist(buildPlaylist(videos, next));
       return next;
     });
-  }, [videos, saveCurrentVideo]);
+  }, [videos, saveCurrentVideo, buildPlaylist]);
 
   const handleSelectVideo = useCallback((index: number) => {
     setCurrentVideoIndex(index);
     saveCurrentVideo(videos[index]?.youtube_id);
-  }, [videos, saveCurrentVideo]);
+    setPlaylist(buildPlaylist(videos, index));
+  }, [videos, saveCurrentVideo, buildPlaylist]);
 
   if (!config) {
     return (
@@ -350,6 +391,19 @@ function ARRDashboard() {
         onPrevVideo={handlePrevVideo}
         onSelectVideo={handleSelectVideo}
       />
+
+      {/* TV start overlay — click to unmute */}
+      {tvMode && !tvStarted && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
+          onClick={() => { setTvStarted(true); setMuted(false); }}
+        >
+          <div className="text-center">
+            <div className="text-6xl mb-6">▶</div>
+            <div className="text-2xl font-bold text-white">Click to start</div>
+          </div>
+        </div>
+      )}
 
       {/* Help popup */}
       {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}

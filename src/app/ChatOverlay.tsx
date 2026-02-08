@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 import ChatMessage from "./ChatMessage";
+import Tooltip from "./Tooltip";
 
 type Message = {
   id: string;
@@ -178,21 +179,23 @@ export default memo(function ChatOverlay() {
   return (
     <>
       {/* Toggle button */}
-      <button
-        className="chat-toggle-btn"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Close chat" : "Open chat"}
-      >
-        {open ? (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 3.5C2 2.67 2.67 2 3.5 2H12.5C13.33 2 14 2.67 14 3.5V9.5C14 10.33 13.33 11 12.5 11H5L2 14V3.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
+      <Tooltip label="Chat">
+        <button
+          className="chat-toggle-btn"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? "Close chat" : "Open chat"}
+        >
+          {open ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 3.5C2 2.67 2.67 2 3.5 2H12.5C13.33 2 14 2.67 14 3.5V9.5C14 10.33 13.33 11 12.5 11H5L2 14V3.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      </Tooltip>
 
       {/* Chat panel */}
       {open && (
