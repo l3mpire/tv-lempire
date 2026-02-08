@@ -419,6 +419,7 @@ function ARRDashboard() {
   const [breakingNewsActive, setBreakingNewsActive] = useState(false);
   const [videoBlocked, setVideoBlocked] = useState(false);
   const [cinemaMode, setCinemaMode] = useState(false);
+  const [videosLoaded, setVideosLoaded] = useState(false);
   const cinemaModeRef = useRef(false);
   const cinemaVideosRef = useRef<Record<string, number>>({});
   const [tickerSpeed, setTickerSpeed] = useState<1 | 3 | 10>(1);
@@ -513,6 +514,7 @@ function ARRDashboard() {
       if (prefs.cinema_videos && typeof prefs.cinema_videos === "object") {
         cinemaVideosRef.current = prefs.cinema_videos;
       }
+      setVideosLoaded(true);
     });
   }, []);
 
@@ -654,7 +656,7 @@ function ARRDashboard() {
   return (
     <div className="dash-wrapper">
       {/* Video background */}
-      <VideoBackground ref={videoPlayerRef} showVideo={showVideo} playlist={playlist} muted={muted} paused={breakingNewsActive} initialProgress={videoProgress} onProgressUpdate={saveVideoProgress} onPlaybackBlocked={setVideoBlocked} cinemaMode={cinemaMode} />
+      {videosLoaded && <VideoBackground ref={videoPlayerRef} showVideo={showVideo} playlist={playlist} muted={muted} paused={breakingNewsActive} initialProgress={videoProgress} onProgressUpdate={saveVideoProgress} onPlaybackBlocked={setVideoBlocked} cinemaMode={cinemaMode} />}
 
       {/* Ambient background (hidden in cinema mode) */}
       {!cinemaMode && <AmbientBackground />}
