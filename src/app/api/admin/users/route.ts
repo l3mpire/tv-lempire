@@ -138,6 +138,49 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
   }
 
+  // Send email notification when promoting to admin
+  if (isAdmin === true) {
+    const { data: promotedUser } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", userId)
+      .single();
+
+    if (promotedUser) {
+      const appUrl = request.nextUrl.origin;
+      const adminUrl = `${appUrl}/admin`;
+
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "noreply@lempire.co",
+          to: promotedUser.email,
+          subject: "You are now an admin - lempire Dashboard",
+          html: `
+            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+              <h2 style="color: #fff; background: #18181b; padding: 20px; border-radius: 8px; text-align: center;">
+                lempire Dashboard
+              </h2>
+              <p>Hi ${promotedUser.name},</p>
+              <p>You have been promoted to <strong>admin</strong> on the lempire Dashboard.</p>
+              <p>You can now access the admin panel to manage products, users, and settings:</p>
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${adminUrl}"
+                   style="background: #f59e0b; color: #000; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+                  Go to Admin Panel
+                </a>
+              </div>
+              <p style="color: #888; font-size: 13px;">Or copy this link: ${adminUrl}</p>
+            </div>
+          `,
+        });
+      } catch (e) {
+        console.error("Failed to send admin promotion email:", e);
+        // Don't fail the promotion if email fails
+      }
+    }
+  }
+
   return NextResponse.json({ success: true });
 }
 
