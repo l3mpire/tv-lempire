@@ -22,7 +22,7 @@ function createBrowserSupabase() {
 
 const DEFAULT_SCROLL_SPEED = 60; // pixels per second
 
-export default function NewsTicker({ tvMode = false, scrollSpeed = DEFAULT_SCROLL_SPEED }: { tvMode?: boolean; scrollSpeed?: number }) {
+export default function NewsTicker({ tvMode = false, cinemaMode = false, scrollSpeed = DEFAULT_SCROLL_SPEED }: { tvMode?: boolean; cinemaMode?: boolean; scrollSpeed?: number }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [renderMessages, setRenderMessages] = useState<Message[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -159,7 +159,7 @@ export default function NewsTicker({ tvMode = false, scrollSpeed = DEFAULT_SCROL
 
   return (
     <div
-      className="news-ticker"
+      className={`news-ticker${cinemaMode ? " news-ticker-cinema" : ""}`}
       style={tvMode ? { bottom: 0 } : undefined}
       onMouseEnter={() => { pausedRef.current = true; }}
       onMouseLeave={() => { pausedRef.current = false; }}

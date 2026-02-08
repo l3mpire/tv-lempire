@@ -902,10 +902,11 @@ function ARRDynamic({
             </div>
           </div>
 
-          {/* News ticker */}
-          <NewsTicker tvMode={tvMode} scrollSpeed={tickerSpeed * 60} />
         </>
       )}
+
+      {/* News ticker (always visible, lighter in cinema mode) */}
+      <NewsTicker tvMode={tvMode} cinemaMode={cinemaMode} scrollSpeed={tickerSpeed * 60} />
 
       {/* Status bar (hidden in TV mode) */}
       {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}

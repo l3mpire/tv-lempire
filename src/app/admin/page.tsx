@@ -528,7 +528,7 @@ export default function AdminPage() {
         </div>
 
         {/* USERS */}
-        <div className="border border-zinc-800 rounded-lg p-6 mb-8">
+        <div className="border border-zinc-800 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
           <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users <span className="text-zinc-500 font-mono text-sm font-normal">{users.length}</span></h2>
           {users.length === 0 ? (
             <span className="text-zinc-500">Loading users...</span>
@@ -603,7 +603,7 @@ export default function AdminPage() {
         </div>
 
         {/* BACKGROUND VIDEOS */}
-        <div className="border border-zinc-800 rounded-lg p-6 mb-8">
+        <div className="border border-zinc-800 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
           <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos <span className="text-zinc-500 font-mono text-sm font-normal">{videos.length}</span></h2>
 
           <div className="flex gap-2 mb-4">
@@ -659,7 +659,7 @@ export default function AdminPage() {
         </div>
 
         {/* TOTAL */}
-        <div className="border border-green-900 bg-green-950/30 rounded-lg p-6 mb-8">
+        <div className="border border-green-900 bg-green-950/30 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
           <h2 className="text-lg font-semibold mb-4 text-green-400">
             Total lempire
           </h2>
@@ -691,7 +691,7 @@ export default function AdminPage() {
           const groupYoY = (Math.pow(1 + groupMoM / 100, 12) - 1) * 100;
 
           return (
-            <div key={group.name} className="border border-zinc-800 rounded-lg p-6 mb-6">
+            <div key={group.name} className="border border-zinc-800 rounded-lg p-6 mb-6" style={{ contain: 'content' }}>
               <h2 className="text-lg font-semibold mb-4 text-zinc-200">
                 {group.name}
               </h2>
@@ -748,9 +748,9 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="bg-zinc-900 rounded p-3 font-mono text-xs text-zinc-500 space-y-1">
-                        <div className="text-zinc-400 font-semibold mb-2">Calculation details:</div>
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                      <details className="bg-zinc-900 rounded font-mono text-xs text-zinc-500">
+                        <summary className="p-3 cursor-pointer text-zinc-400 font-semibold hover:text-zinc-300 select-none">Calculation details</summary>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-1 px-3 pb-3">
                           <div>Current ARR (Feb):</div>
                           <div className="text-zinc-300">{formatCurrency(p.arr)}</div>
 
@@ -781,7 +781,7 @@ export default function AdminPage() {
                           <div>Last updated:</div>
                           <div className="text-zinc-300">{new Date(p.updatedAt).toLocaleString()}</div>
                         </div>
-                      </div>
+                      </details>
                     </div>
                   );
                 })}
