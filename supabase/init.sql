@@ -14,6 +14,7 @@ CREATE TABLE users (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   is_admin BOOLEAN NOT NULL DEFAULT false,
+  preferences JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -29,3 +30,16 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE videos (
+  id SERIAL PRIMARY KEY,
+  youtube_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  position INT NOT NULL DEFAULT 0,
+  tv_enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_videos_position ON videos(position ASC);
+
+ALTER TABLE videos ENABLE ROW LEVEL SECURITY;

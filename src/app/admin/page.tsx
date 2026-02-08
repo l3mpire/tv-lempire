@@ -1,6 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type ProductConfig = {
   arr: number;
@@ -62,6 +78,93 @@ type User = {
   created_at: string;
 };
 
+type Video = {
+  id: number;
+  youtube_id: string;
+  title: string;
+  position: number;
+  tv_enabled: boolean;
+};
+
+function SortableVideoRow({
+  video,
+  onRemove,
+  onToggleTV,
+}: {
+  video: Video;
+  onRemove: (id: number) => void;
+  onToggleTV: (id: number, enabled: boolean) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: video.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
+    >
+      <div className="flex items-center gap-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-zinc-500 hover:text-zinc-300 px-1 touch-none"
+          aria-label="Drag to reorder"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="4" y="2" width="8" height="1.5" rx="0.75" />
+            <rect x="4" y="5.5" width="8" height="1.5" rx="0.75" />
+            <rect x="4" y="9" width="8" height="1.5" rx="0.75" />
+            <rect x="4" y="12.5" width="8" height="1.5" rx="0.75" />
+          </svg>
+        </button>
+        <img
+          src={`https://img.youtube.com/vi/${video.youtube_id}/default.jpg`}
+          alt=""
+          className="w-20 h-15 rounded object-cover"
+        />
+        <div>
+          <span className="text-zinc-200 text-sm font-mono">{video.youtube_id}</span>
+          {video.title && (
+            <span className="text-zinc-500 text-sm ml-2">{video.title}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => onToggleTV(video.id, !video.tv_enabled)}
+          className={`px-2 py-1 rounded text-xs transition-colors border ${
+            video.tv_enabled
+              ? "bg-blue-950 text-blue-400 border-blue-800 hover:bg-blue-900"
+              : "bg-zinc-900 text-zinc-500 border-zinc-700 hover:bg-zinc-800"
+          }`}
+          title={video.tv_enabled ? "Shown on TV" : "Hidden on TV"}
+        >
+          TV
+        </button>
+        <button
+          onClick={() => onRemove(video.id)}
+          className="px-3 py-1 rounded text-sm transition-colors bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +172,67 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [addingVideo, setAddingVideo] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const reorderVideos = useCallback(async (reordered: Video[]) => {
+    const previous = videos;
+    setVideos(reordered);
+
+    try {
+      const res = await fetch("/api/videos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: reordered.map((v) => v.id) }),
+      });
+
+      if (!res.ok) {
+        setVideos(previous);
+        console.error("Failed to reorder videos");
+      }
+    } catch (e) {
+      setVideos(previous);
+      console.error("Failed to reorder videos:", e);
+    }
+  }, [videos]);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = videos.findIndex((v) => v.id === active.id);
+    const newIndex = videos.findIndex((v) => v.id === over.id);
+    const reordered = arrayMove(videos, oldIndex, newIndex);
+    reorderVideos(reordered);
+  }
+
+  async function toggleTVEnabled(id: number, tv_enabled: boolean) {
+    const previous = videos;
+    setVideos((prev) => prev.map((v) => (v.id === id ? { ...v, tv_enabled } : v)));
+
+    try {
+      const res = await fetch("/api/videos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, tv_enabled }),
+      });
+      if (!res.ok) {
+        setVideos(previous);
+        console.error("Failed to toggle TV mode");
+      }
+    } catch (e) {
+      setVideos(previous);
+      console.error("Failed to toggle TV mode:", e);
+    }
+  }
 
   async function fetchUsers() {
     try {
@@ -131,6 +295,73 @@ export default function AdminPage() {
     setTogglingUser(null);
   }
 
+  async function resendVerificationEmail(userId: string) {
+    setResendingEmail(userId);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, resendVerification: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Failed to resend verification email:", data.error);
+      }
+    } catch (e) {
+      console.error("Failed to resend verification email:", e);
+    }
+    setResendingEmail(null);
+  }
+
+  async function fetchVideos() {
+    try {
+      const res = await fetch("/api/videos");
+      const data = await res.json();
+      if (data.videos) setVideos(data.videos);
+    } catch (e) {
+      console.error("Failed to fetch videos:", e);
+    }
+  }
+
+  async function addVideo() {
+    if (!videoUrl.trim()) return;
+    setAddingVideo(true);
+    setVideoError(null);
+    try {
+      const res = await fetch("/api/videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: videoUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVideoError(data.error || "Failed to add video");
+      } else {
+        setVideoUrl("");
+        await fetchVideos();
+      }
+    } catch (e) {
+      console.error("Failed to add video:", e);
+      setVideoError("Failed to add video");
+    }
+    setAddingVideo(false);
+  }
+
+  async function removeVideo(id: number) {
+    try {
+      const res = await fetch("/api/videos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        await fetchVideos();
+      }
+    } catch (e) {
+      console.error("Failed to remove video:", e);
+    }
+  }
+
   async function fetchData() {
     setLoading(true);
     try {
@@ -169,6 +400,7 @@ export default function AdminPage() {
     fetchData();
     fetchUsers();
     fetchCurrentUser();
+    fetchVideos();
   }, []);
 
   if (loading || !config) {
@@ -241,8 +473,15 @@ export default function AdminPage() {
           {users.length === 0 ? (
             <span className="text-zinc-500">Loading users...</span>
           ) : (
-            <div className="space-y-2">
-              {users.map((user) => (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              {[...users].sort((a, b) => {
+                // Admins first
+                if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
+                // Unverified second
+                if (a.verified !== b.verified) return a.verified ? 1 : -1;
+                // Alphabetical by name
+                return a.name.localeCompare(b.name);
+              }).map((user) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between bg-zinc-900/50 rounded p-3"
@@ -265,13 +504,22 @@ export default function AdminPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {!user.verified && (
-                      <button
-                        onClick={() => patchUser(user.id, { verified: true })}
-                        disabled={togglingUser === user.id}
-                        className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-950 hover:bg-blue-900 text-blue-400 border border-blue-800"
-                      >
-                        Verify
-                      </button>
+                      <>
+                        <button
+                          onClick={() => resendVerificationEmail(user.id)}
+                          disabled={resendingEmail === user.id || togglingUser === user.id}
+                          className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700"
+                        >
+                          {resendingEmail === user.id ? "Sending..." : "Resend email"}
+                        </button>
+                        <button
+                          onClick={() => patchUser(user.id, { verified: true })}
+                          disabled={togglingUser === user.id}
+                          className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-950 hover:bg-blue-900 text-blue-400 border border-blue-800"
+                        >
+                          Verify
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => patchUser(user.id, { isAdmin: !user.is_admin })}
@@ -299,6 +547,61 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* BACKGROUND VIDEOS */}
+        <div className="border border-zinc-800 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos</h2>
+
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={videoUrl}
+              onChange={(e) => { setVideoUrl(e.target.value); setVideoError(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") addVideo(); }}
+              placeholder="YouTube URL or video ID"
+              className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+            />
+            <button
+              onClick={addVideo}
+              disabled={addingVideo || !videoUrl.trim()}
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+            >
+              {addingVideo ? "Adding..." : "Add"}
+            </button>
+          </div>
+
+          {videoError && (
+            <div className="text-red-400 text-sm mb-4">{videoError}</div>
+          )}
+
+          <div className="max-h-[600px] overflow-y-auto">
+            {videos.length === 0 ? (
+              <p className="text-zinc-500 text-sm">No videos configured. Default video will be used.</p>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={videos.map((v) => v.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {videos.map((video) => (
+                      <SortableVideoRow
+                        key={video.id}
+                        video={video}
+                        onRemove={removeVideo}
+                        onToggleTV={toggleTVEnabled}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
         </div>
 
         {/* TOTAL */}

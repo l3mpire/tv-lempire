@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
+import ChatMessage from "./ChatMessage";
 
 type Message = {
   id: string;
@@ -206,24 +207,15 @@ export default memo(function ChatOverlay() {
               <div className="chat-empty">No messages yet</div>
             )}
             {messages.map((msg) => (
-              <div key={msg.id} className="chat-message">
-                <div className="chat-message-header">
-                  <span className="chat-message-user">{msg.userName}</span>
-                  <span className="chat-message-time">{relativeTime(msg.createdAt)}</span>
-                  {currentUserId && msg.userId === currentUserId && (
-                    <button
-                      className="chat-delete-btn"
-                      onClick={() => handleDelete(msg.id)}
-                      aria-label="Delete message"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                        <path d="M2 2L8 8M8 2L2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                <div className="chat-message-content">{msg.content}</div>
-              </div>
+              <ChatMessage
+                key={msg.id}
+                id={msg.id}
+                userName={msg.userName}
+                time={relativeTime(msg.createdAt)}
+                content={msg.content}
+                isOwn={currentUserId === msg.userId}
+                onDelete={handleDelete}
+              />
             ))}
             <div ref={messagesEndRef} />
           </div>

@@ -3,8 +3,8 @@
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
-import ChatOverlay from "./ChatOverlay";
 import NewsTicker from "./NewsTicker";
+import StatusBar from "./StatusBar";
 import { useNow } from "./arrTickerStore";
 
 export const dynamic = "force-dynamic";
@@ -82,20 +82,6 @@ const ProductCard = memo(function ProductCard({
   );
 });
 
-const Clock = memo(function Clock({ now }: { now: number }) {
-  const time = useMemo(
-    () =>
-      new Date(now).toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      }),
-    [now]
-  );
-
-  return <span className="dash-time">{time}</span>;
-});
 
 function formatARR(value: number): string {
   return Math.floor(value).toLocaleString("en-US");
@@ -180,12 +166,26 @@ function HelpPopup({ onClose }: { onClose: () => void }) {
   );
 }
 
-const VideoBackground = memo(function VideoBackground({ showVideo }: { showVideo: boolean }) {
+const DEFAULT_VIDEO_ID = "IoVyO6SyKZk";
+
+const VideoBackground = memo(function VideoBackground({
+  showVideo,
+  playlist,
+  muted,
+}: {
+  showVideo: boolean;
+  playlist: string;
+  muted: boolean;
+}) {
   if (!showVideo) return null;
+
+  const ids = playlist || DEFAULT_VIDEO_ID;
+  const firstId = ids.split(",")[0];
+
   return (
     <div className="dash-video-bg">
       <iframe
-        src="https://www.youtube.com/embed/IoVyO6SyKZk?autoplay=1&mute=1&loop=1&playlist=IoVyO6SyKZk&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0"
+        src={`https://www.youtube.com/embed/${firstId}?autoplay=1&mute=${muted ? 1 : 0}&loop=1&playlist=${ids}&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0`}
         allow="autoplay"
         className="dash-video-iframe"
       />
@@ -210,6 +210,8 @@ const AmbientBackground = memo(function AmbientBackground() {
 function ARRDashboard() {
   const [config, setConfig] = useState<Config | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [videos, setVideos] = useState<{ youtube_id: string; title: string }[]>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const router = useRouter();
 
   const handleLogout = useCallback(async () => {
@@ -217,10 +219,13 @@ function ARRDashboard() {
     router.push("/login");
     router.refresh();
   }, [router]);
-  const showVideo = useMemo(() => {
-    if (typeof window === "undefined") return true;
-    return !new URLSearchParams(window.location.search).has("novideo");
+  const searchParams = useMemo(() => {
+    if (typeof window === "undefined") return new URLSearchParams();
+    return new URLSearchParams(window.location.search);
   }, []);
+  const tvMode = useMemo(() => searchParams.has("tv"), [searchParams]);
+  const [showVideo, setShowVideo] = useState(() => !searchParams.has("novideo"));
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     // Try localStorage first (local dev fallback), then API
@@ -236,7 +241,63 @@ function ARRDashboard() {
     fetch("/api/config")
       .then((res) => res.json())
       .then((data: Config) => setConfig(data));
+
+    const videoUrl = tvMode ? "/api/videos?tv=1" : "/api/videos";
+    const prefsPromise = tvMode
+      ? Promise.resolve({})
+      : fetch("/api/preferences").then((res) => res.json()).catch(() => ({}));
+    Promise.all([
+      fetch(videoUrl).then((res) => res.json()).catch(() => ({ videos: [] })),
+      prefsPromise,
+    ]).then(([videoData, prefs]) => {
+      if (videoData.videos?.length) {
+        const vids = videoData.videos.map((v: { youtube_id: string; title: string }) => ({ youtube_id: v.youtube_id, title: v.title }));
+        setVideos(vids);
+        if (typeof prefs.current_video === "string") {
+          const idx = vids.findIndex((v: { youtube_id: string }) => v.youtube_id === prefs.current_video);
+          if (idx >= 0) setCurrentVideoIndex(idx);
+        }
+      }
+      if (typeof prefs.show_video === "boolean") setShowVideo(prefs.show_video);
+      if (typeof prefs.muted === "boolean") setMuted(prefs.muted);
+    });
   }, []);
+
+  const playlist = useMemo(() => {
+    if (videos.length === 0) return "";
+    const ids = videos.map((v) => v.youtube_id);
+    const rotated = [...ids.slice(currentVideoIndex), ...ids.slice(0, currentVideoIndex)];
+    return rotated.join(",");
+  }, [videos, currentVideoIndex]);
+
+  const saveCurrentVideo = useCallback((youtubeId: string) => {
+    fetch("/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_video: youtubeId }),
+    }).catch(() => {});
+  }, []);
+
+  const handleNextVideo = useCallback(() => {
+    setCurrentVideoIndex((i) => {
+      const next = videos.length > 0 ? (i + 1) % videos.length : 0;
+      saveCurrentVideo(videos[next]?.youtube_id);
+      return next;
+    });
+  }, [videos, saveCurrentVideo]);
+
+  const handlePrevVideo = useCallback(() => {
+    setCurrentVideoIndex((i) => {
+      const next = videos.length > 0 ? (i - 1 + videos.length) % videos.length : 0;
+      saveCurrentVideo(videos[next]?.youtube_id);
+      return next;
+    });
+  }, [videos, saveCurrentVideo]);
+
+  const handleSelectVideo = useCallback((index: number) => {
+    setCurrentVideoIndex(index);
+    saveCurrentVideo(videos[index]?.youtube_id);
+  }, [videos, saveCurrentVideo]);
 
   if (!config) {
     return (
@@ -249,7 +310,7 @@ function ARRDashboard() {
   return (
     <div className="dash-wrapper">
       {/* Video background */}
-      <VideoBackground showVideo={showVideo} />
+      <VideoBackground showVideo={showVideo} playlist={playlist} muted={muted} />
 
       {/* Ambient background */}
       <AmbientBackground />
@@ -258,6 +319,36 @@ function ARRDashboard() {
         config={config}
         onShowHelp={() => setShowHelp(true)}
         onLogout={handleLogout}
+        tvMode={tvMode}
+        showVideo={showVideo}
+        onToggleVideo={() => {
+          setShowVideo((v) => {
+            const next = !v;
+            fetch("/api/preferences", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ show_video: next }),
+            }).catch(() => {});
+            return next;
+          });
+        }}
+        muted={muted}
+        onToggleMuted={() => {
+          setMuted((m) => {
+            const next = !m;
+            fetch("/api/preferences", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ muted: next }),
+            }).catch(() => {});
+            return next;
+          });
+        }}
+        videos={videos}
+        currentVideoIndex={currentVideoIndex}
+        onNextVideo={handleNextVideo}
+        onPrevVideo={handlePrevVideo}
+        onSelectVideo={handleSelectVideo}
       />
 
       {/* Help popup */}
@@ -270,10 +361,30 @@ function ARRDynamic({
   config,
   onShowHelp,
   onLogout,
+  tvMode,
+  showVideo,
+  onToggleVideo,
+  muted,
+  onToggleMuted,
+  videos,
+  currentVideoIndex,
+  onNextVideo,
+  onPrevVideo,
+  onSelectVideo,
 }: {
   config: Config;
   onShowHelp: () => void;
   onLogout: () => void;
+  tvMode: boolean;
+  showVideo: boolean;
+  onToggleVideo: () => void;
+  muted: boolean;
+  onToggleMuted: () => void;
+  videos: { youtube_id: string; title: string }[];
+  currentVideoIndex: number;
+  onNextVideo: () => void;
+  onPrevVideo: () => void;
+  onSelectVideo: (index: number) => void;
 }) {
   const now = useNow();
   const lemlistARR = computeARR(config.lemlist, now);
@@ -369,21 +480,10 @@ function ARRDynamic({
       </div>
 
       {/* News ticker */}
-      <NewsTicker />
+      <NewsTicker tvMode={tvMode} />
 
-      {/* Status bar */}
-      <div className="dash-status-bar">
-        <div className="dash-status-left">
-          <Clock now={now} />
-          <ChatOverlay />
-        </div>
-        <div className="dash-status-right">
-          <span className="dash-ticker-dot" />
-          <span className="dash-ticker-text">Live</span>
-          <button className="dash-help-btn" onClick={onShowHelp}>?</button>
-          <button className="dash-logout-btn" onClick={onLogout}>Logout</button>
-        </div>
-      </div>
+      {/* Status bar (hidden in TV mode) */}
+      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} />}
     </>
   );
 }
