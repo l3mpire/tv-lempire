@@ -1,24 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
-
-const SESSION_COOKIE = "dashboard_session";
+import { SESSION_COOKIE } from "@/lib/auth";
 const MAX_CONTENT_LENGTH = 500;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const session = cookieStore.get(SESSION_COOKIE)?.value;
   if (!session || session === "authenticated") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = request.nextUrl;
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 50);
+  const before = searchParams.get("before");
+  const breaking = searchParams.get("breaking");
+
   const supabase = getSupabase();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("messages")
     .select("id, content, created_at, user_id, is_breaking_news, users(name)")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(limit);
+
+  if (breaking === "true") {
+    query = query.eq("is_breaking_news", true);
+  } else if (breaking === "false") {
+    query = query.eq("is_breaking_news", false);
+  }
+
+  if (before) {
+    query = query.lt("created_at", before);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("GET /api/messages error:", error);
@@ -34,7 +50,7 @@ export async function GET() {
     isBreakingNews: !!msg.is_breaking_news,
   }));
 
-  return NextResponse.json({ messages });
+  return NextResponse.json({ messages, hasMore: (data ?? []).length === limit });
 }
 
 export async function POST(request: NextRequest) {

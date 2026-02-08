@@ -1,24 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
 import { extractYoutubeId } from "@/lib/linkify";
-
-const SESSION_COOKIE = "dashboard_session";
-
-async function requireAdmin() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionId) return null;
-
-  const supabase = getSupabase();
-  const { data: user } = await supabase
-    .from("users")
-    .select("id, is_admin")
-    .eq("id", sessionId)
-    .single();
-
-  return user?.is_admin ? user : null;
-}
+import { requireAdmin } from "@/lib/auth";
 
 // GET: public — return videos ordered by position
 // ?tv=1 filters to tv_enabled videos only

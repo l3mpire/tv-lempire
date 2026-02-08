@@ -1049,6 +1049,28 @@ body {
   border-radius: 2px;
 }
 
+.chat-load-more {
+  display: block;
+  margin: 0.25rem auto 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chat-load-more:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+.chat-load-more:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .chat-empty {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;

@@ -4,8 +4,7 @@ import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
-
-const SESSION_COOKIE = "dashboard_session";
+import { SESSION_COOKIE, escapeHtml } from "@/lib/auth";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
 const ALLOWED_DOMAIN = "lempire.co";
 
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
           <h2 style="color: #fff; background: #18181b; padding: 20px; border-radius: 8px; text-align: center;">
             lempire Dashboard
           </h2>
-          <p>Hi ${name.trim()},</p>
+          <p>Hi ${escapeHtml(name.trim())},</p>
           <p>Click the button below to verify your email and access the dashboard:</p>
           <div style="text-align: center; margin: 32px 0;">
             <a href="${verifyUrl}"

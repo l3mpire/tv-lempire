@@ -1,25 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
 import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
-
-const SESSION_COOKIE = "dashboard_session";
-
-async function requireAdmin() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionId) return null;
-
-  const supabase = getSupabase();
-  const { data: user } = await supabase
-    .from("users")
-    .select("id, is_admin")
-    .eq("id", sessionId)
-    .single();
-
-  return user?.is_admin ? user : null;
-}
+import { requireAdmin, escapeHtml } from "@/lib/auth";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -91,7 +74,7 @@ export async function PATCH(request: NextRequest) {
             <h2 style="color: #fff; background: #18181b; padding: 20px; border-radius: 8px; text-align: center;">
               lempire Dashboard
             </h2>
-            <p>Hi ${user.name},</p>
+            <p>Hi ${escapeHtml(user.name)},</p>
             <p>Click the button below to verify your email and access the dashboard:</p>
             <div style="text-align: center; margin: 32px 0;">
               <a href="${verifyUrl}"
@@ -161,7 +144,7 @@ export async function PATCH(request: NextRequest) {
               <h2 style="color: #fff; background: #18181b; padding: 20px; border-radius: 8px; text-align: center;">
                 lempire Dashboard
               </h2>
-              <p>Hi ${promotedUser.name},</p>
+              <p>Hi ${escapeHtml(promotedUser.name)},</p>
               <p>You have been promoted to <strong>admin</strong> on the lempire Dashboard.</p>
               <p>You can now access the admin panel to manage products, users, and settings:</p>
               <div style="text-align: center; margin: 32px 0;">

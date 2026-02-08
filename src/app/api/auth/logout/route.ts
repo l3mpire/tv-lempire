@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
-const SESSION_COOKIE = "dashboard_session";
+import { SESSION_COOKIE } from "@/lib/auth";
 
 export async function POST() {
   const cookieStore = await cookies();

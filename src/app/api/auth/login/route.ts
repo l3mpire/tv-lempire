@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase";
-
-const SESSION_COOKIE = "dashboard_session";
+import { SESSION_COOKIE } from "@/lib/auth";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
 
 export async function POST(request: NextRequest) {

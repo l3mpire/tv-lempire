@@ -42,12 +42,24 @@ export default function NewsTicker({ tvMode = false, cinemaMode = false, scrollS
   useEffect(() => {
     const fetchMessages = async () => {
       try {
-        const res = await fetch("/api/messages");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.messages) {
-          setMessages(data.messages.reverse());
-        }
+        const [normalRes, bnRes] = await Promise.all([
+          fetch("/api/messages?limit=20&breaking=false"),
+          fetch("/api/messages?limit=5&breaking=true"),
+        ]);
+        if (!normalRes.ok || !bnRes.ok) return;
+        const [normalData, bnData] = await Promise.all([normalRes.json(), bnRes.json()]);
+        const normal: Message[] = normalData.messages ?? [];
+        const bn: Message[] = bnData.messages ?? [];
+        // Merge, dedup by id, sort by createdAt ASC
+        const seen = new Set<string>();
+        const merged = [...normal, ...bn]
+          .filter((m) => {
+            if (seen.has(m.id)) return false;
+            seen.add(m.id);
+            return true;
+          })
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        setMessages(merged);
       } catch {
         // Silently fail — ticker is non-critical
       }

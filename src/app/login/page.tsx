@@ -48,7 +48,7 @@ export default function LoginPage() {
       {/* Login card */}
       <div className="login-card">
         <div className="login-brand">lempire</div>
-        <div className="login-title">ARR Dashboard</div>
+        <div className="login-title">Ready to groove ?</div>
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">

@@ -470,16 +470,6 @@ function ARRDashboard() {
   }, []);
 
   useEffect(() => {
-    // Try localStorage first (local dev fallback), then API
-    if (typeof window !== "undefined") {
-      const local = localStorage.getItem("arr-config");
-      if (local) {
-        try {
-          setConfig(JSON.parse(local));
-          return;
-        } catch { /* fall through to API */ }
-      }
-    }
     fetch("/api/config")
       .then((res) => res.json())
       .then((data: Config) => setConfig(data));

@@ -171,7 +171,7 @@ function SortableVideoRow({
         <Tooltip label={video.tv_enabled ? "Shown on /?tv screens" : "Hidden on /?tv screens"}>
           <button
             onClick={() => onToggleTV(video.id, !video.tv_enabled)}
-            className={`px-2 py-1 rounded text-xs transition-colors border ${
+            className={`px-2 py-1 rounded text-xs cursor-pointer transition-colors border ${
               video.tv_enabled
                 ? "bg-blue-950 text-blue-400 border-blue-800 hover:bg-blue-900"
                 : "bg-zinc-900 text-zinc-500 border-zinc-700 hover:bg-zinc-800"
@@ -182,7 +182,7 @@ function SortableVideoRow({
         </Tooltip>
         <button
           onClick={() => onRemove(video.id)}
-          className="px-3 py-1 rounded text-sm transition-colors bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
+          className="px-3 py-1 rounded text-sm cursor-pointer transition-colors bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
         >
           Remove
         </button>
@@ -205,17 +205,28 @@ export default function AdminPage() {
   const [addingVideo, setAddingVideo] = useState(false);
 
   const videosChannelRef = useRef<RealtimeChannel | null>(null);
+  const chatChannelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     const supabase = getSupabaseBrowser();
-    const channel = supabase.channel("videos");
-    channel.subscribe();
-    videosChannelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
+    const videosChannel = supabase.channel("videos");
+    videosChannel.subscribe();
+    videosChannelRef.current = videosChannel;
+    const chatChannel = supabase.channel("chat");
+    chatChannel.subscribe();
+    chatChannelRef.current = chatChannel;
+    return () => {
+      supabase.removeChannel(videosChannel);
+      supabase.removeChannel(chatChannel);
+    };
   }, []);
 
   const broadcastVideosChanged = useCallback(() => {
     videosChannelRef.current?.send({ type: "broadcast", event: "videos_changed", payload: {} });
+  }, []);
+
+  const broadcastUsersChanged = useCallback(() => {
+    chatChannelRef.current?.send({ type: "broadcast", event: "users_changed", payload: {} });
   }, []);
 
   const broadcastPlayNow = useCallback((youtubeId: string) => {
@@ -312,6 +323,7 @@ export default function AdminPage() {
       });
       if (res.ok) {
         await fetchUsers();
+        broadcastUsersChanged();
       } else {
         const data = await res.json();
         console.error("Failed to update user:", data.error);
@@ -333,6 +345,7 @@ export default function AdminPage() {
       });
       if (res.ok) {
         await fetchUsers();
+        broadcastUsersChanged();
       } else {
         const data = await res.json();
         console.error("Failed to delete user:", data.error);
@@ -498,7 +511,7 @@ export default function AdminPage() {
             <button
               onClick={refreshFromHolistics}
               disabled={refreshing}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed rounded text-sm transition-colors flex items-center gap-2"
             >
               {refreshing && (
                 <svg
@@ -561,14 +574,14 @@ export default function AdminPage() {
                         <button
                           onClick={() => resendVerificationEmail(user.id)}
                           disabled={resendingEmail === user.id || togglingUser === user.id}
-                          className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700"
+                          className="px-3 py-1 rounded text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700"
                         >
                           {resendingEmail === user.id ? "Sending..." : "Resend email"}
                         </button>
                         <button
                           onClick={() => patchUser(user.id, { verified: true })}
                           disabled={togglingUser === user.id}
-                          className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-950 hover:bg-blue-900 text-blue-400 border border-blue-800"
+                          className="px-3 py-1 rounded text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-950 hover:bg-blue-900 text-blue-400 border border-blue-800"
                         >
                           Verify
                         </button>
@@ -577,7 +590,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => patchUser(user.id, { isAdmin: !user.is_admin })}
                       disabled={togglingUser === user.id || user.id === currentUserId}
-                      className={`px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`px-3 py-1 rounded text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         user.is_admin
                           ? "bg-red-950 hover:bg-red-900 text-red-400 border border-red-800"
                           : "bg-green-950 hover:bg-green-900 text-green-400 border border-green-800"
@@ -590,7 +603,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => deleteUser(user.id, user.name)}
                         disabled={togglingUser === user.id}
-                        className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
+                        className="px-3 py-1 rounded text-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-zinc-900 hover:bg-red-950 text-zinc-500 hover:text-red-400 border border-zinc-700 hover:border-red-800"
                       >
                         Delete
                       </button>
@@ -618,7 +631,7 @@ export default function AdminPage() {
             <button
               onClick={addVideo}
               disabled={addingVideo || !videoUrl.trim()}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed rounded text-sm transition-colors"
             >
               {addingVideo ? "Adding..." : "Add"}
             </button>

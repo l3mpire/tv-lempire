@@ -55,8 +55,27 @@ export default memo(function ChatOverlay() {
   const panelRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const wasOpenRef = useRef(false);
+
+  const isNearBottom = useCallback((el: HTMLElement, threshold = 80) => {
+    return el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const fetchVerifiedUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.users) setVerifiedUsers(data.users);
+    } catch {
+      // Ignore
+    }
   }, []);
 
   // Fetch current user + verified users
@@ -74,30 +93,21 @@ export default memo(function ChatOverlay() {
         // Not logged in
       }
     };
-    const fetchVerifiedUsers = async () => {
-      try {
-        const res = await fetch("/api/users");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.users) setVerifiedUsers(data.users);
-      } catch {
-        // Ignore
-      }
-    };
     fetchUser();
     fetchVerifiedUsers();
-  }, []);
+  }, [fetchVerifiedUsers]);
 
   // Initial fetch + Realtime subscription
   useEffect(() => {
     // 1. Load initial messages via API
     const fetchMessages = async () => {
       try {
-        const res = await fetch("/api/messages");
+        const res = await fetch("/api/messages?limit=10");
         if (!res.ok) return;
         const data = await res.json();
         if (data.messages) {
           setMessages(data.messages.reverse());
+          setHasMore(!!data.hasMore);
         }
       } catch (e) {
         console.error("Failed to fetch messages:", e);
@@ -125,6 +135,9 @@ export default memo(function ChatOverlay() {
         if (!id) return;
         setMessages((prev) => prev.filter((m) => m.id !== id));
       })
+      .on("broadcast", { event: "users_changed" }, () => {
+        fetchVerifiedUsers();
+      })
       .subscribe();
 
     channelRef.current = channel;
@@ -133,14 +146,39 @@ export default memo(function ChatOverlay() {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, []);
+  }, [fetchVerifiedUsers]);
+
+  // Re-fetch verified users when an online user is unknown (e.g. newly verified)
+  const lastPresenceFetchRef = useRef(0);
+  useEffect(() => {
+    if (onlineUsers.size === 0 || verifiedUsers.length === 0) return;
+    const hasUnknown = Array.from(onlineUsers).some(
+      (name) => !verifiedUsers.includes(name)
+    );
+    if (!hasUnknown) return;
+    // Throttle: at most once every 10s to avoid infinite re-fetch loops
+    const now = Date.now();
+    if (now - lastPresenceFetchRef.current < 10_000) return;
+    lastPresenceFetchRef.current = now;
+    fetchVerifiedUsers();
+  }, [onlineUsers, verifiedUsers, fetchVerifiedUsers]);
 
   // Auto-scroll when messages change or panel opens
   useEffect(() => {
     if (open) {
-      setTimeout(scrollToBottom, 50);
+      const justOpened = !wasOpenRef.current;
+      wasOpenRef.current = true;
+      if (justOpened) {
+        // Panel just opened — always scroll to bottom
+        setTimeout(scrollToBottom, 50);
+      } else if (listRef.current && isNearBottom(listRef.current)) {
+        // New message + user is near bottom — scroll
+        setTimeout(scrollToBottom, 50);
+      }
+    } else {
+      wasOpenRef.current = false;
     }
-  }, [messages, open, scrollToBottom]);
+  }, [messages, open, scrollToBottom, isNearBottom]);
 
   // Click outside to close
   useEffect(() => {
@@ -234,6 +272,34 @@ export default memo(function ChatOverlay() {
     }
   };
 
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldest = messages[0].createdAt;
+      const res = await fetch(`/api/messages?limit=10&before=${encodeURIComponent(oldest)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.messages) {
+        const older = (data.messages as Message[]).reverse();
+        const el = listRef.current;
+        const prevHeight = el?.scrollHeight ?? 0;
+        setMessages((prev) => [...older, ...prev]);
+        setHasMore(!!data.hasMore);
+        // Preserve scroll position after prepending
+        if (el) {
+          requestAnimationFrame(() => {
+            el.scrollTop += el.scrollHeight - prevHeight;
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load more messages:", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -320,6 +386,15 @@ export default memo(function ChatOverlay() {
 
           <div className="chat-body">
             <div className="chat-messages" ref={listRef}>
+              {hasMore && (
+                <button
+                  className="chat-load-more"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </button>
+              )}
               {messages.length === 0 && (
                 <div className="chat-empty">No messages yet</div>
               )}

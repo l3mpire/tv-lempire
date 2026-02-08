@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-
-const SESSION_COOKIE = "dashboard_session";
+import { SESSION_COOKIE } from "@/lib/auth";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/api/", "/pending"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

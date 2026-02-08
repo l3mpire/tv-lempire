@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/auth";
 
 type ProductConfig = {
   arr: number;
@@ -63,6 +64,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body: Config = await request.json();
   const now = Date.now();
 

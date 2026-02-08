@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     }
   }
 
-  if (cronSecret && adminPassword && !authorized) {
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
