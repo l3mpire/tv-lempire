@@ -37,7 +37,7 @@ export default memo(function ChatOverlay() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [showUsers, setShowUsers] = useState(true);
-  const [verifiedUsers, setVerifiedUsers] = useState<string[]>([]);
+  const [verifiedUsers, setVerifiedUsers] = useState<{ name: string; lastOnline: string | null }[]>([]);
   const [fullscreen, setFullscreen] = useState(false);
   const onlineUsers = useOnlineUsers();
   const openRef = useRef(false);
@@ -64,7 +64,7 @@ export default memo(function ChatOverlay() {
       const res = await fetch("/api/users");
       if (!res.ok) return;
       const data = await res.json();
-      if (data.users) setVerifiedUsers(data.users);
+      if (data.users) setVerifiedUsers(data.users as { name: string; lastOnline: string | null }[]);
     } catch {
       // Ignore
     }
@@ -143,8 +143,9 @@ export default memo(function ChatOverlay() {
   const lastPresenceFetchRef = useRef(0);
   useEffect(() => {
     if (onlineUsers.size === 0 || verifiedUsers.length === 0) return;
+    const verifiedNames = new Set(verifiedUsers.map((u) => u.name));
     const hasUnknown = Array.from(onlineUsers).some(
-      (name) => !verifiedUsers.includes(name)
+      (name) => !verifiedNames.has(name)
     );
     if (!hasUnknown) return;
     // Throttle: at most once every 10s to avoid infinite re-fetch loops
@@ -410,14 +411,16 @@ export default memo(function ChatOverlay() {
                 <div className="chat-users-header">Users</div>
                 <div className="chat-users-list">
                   {[...verifiedUsers].sort((a, b) => {
-                      const aOnline = onlineUsers.has(a) ? 0 : 1;
-                      const bOnline = onlineUsers.has(b) ? 0 : 1;
+                      const aOnline = onlineUsers.has(a.name) ? 0 : 1;
+                      const bOnline = onlineUsers.has(b.name) ? 0 : 1;
                       if (aOnline !== bOnline) return aOnline - bOnline;
-                      return a.localeCompare(b, undefined, { sensitivity: 'base' });
-                    }).map((name) => (
-                    <div key={name} className="chat-user-item">
-                      <span className={onlineUsers.has(name) ? "chat-user-dot" : "chat-user-dot-offline"} />
-                      {name.toLowerCase()}
+                      const aTime = a.lastOnline ? new Date(a.lastOnline).getTime() : 0;
+                      const bTime = b.lastOnline ? new Date(b.lastOnline).getTime() : 0;
+                      return bTime - aTime;
+                    }).map((u) => (
+                    <div key={u.name} className="chat-user-item">
+                      <span className={onlineUsers.has(u.name) ? "chat-user-dot" : "chat-user-dot-offline"} />
+                      {u.name.toLowerCase()}
                     </div>
                   ))}
                 </div>
