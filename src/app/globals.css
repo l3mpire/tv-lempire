@@ -895,6 +895,8 @@ body {
   width: 90%;
   position: relative;
   animation: fadeInUp 0.3s ease-out;
+  align-self: flex-start;
+  margin-top: 15vh;
 }
 
 .settings-modal h2 {
@@ -903,6 +905,42 @@ body {
   font-size: 1.3rem;
   color: white;
   margin-bottom: 1.5rem;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0;
+}
+
+.settings-tab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.settings-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.settings-tab-content {
+  animation: fadeInUp 0.15s ease-out;
 }
 
 .settings-section {

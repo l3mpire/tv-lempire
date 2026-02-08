@@ -9,7 +9,17 @@ type SettingsModalProps = {
   onToggleMilestoneSound: () => void;
 };
 
+type Tab = "account" | "security" | "preferences";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "account", label: "Account" },
+  { key: "security", label: "Security" },
+  { key: "preferences", label: "Preferences" },
+];
+
 export default function SettingsModal({ onClose, onLogout, milestoneSound, onToggleMilestoneSound }: SettingsModalProps) {
+  const [activeTab, setActiveTab] = useState<Tab>("account");
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [originalName, setOriginalName] = useState("");
@@ -140,113 +150,134 @@ export default function SettingsModal({ onClose, onLogout, milestoneSound, onTog
         <button className="help-close" onClick={onClose}>×</button>
         <h2>Settings</h2>
 
-        {/* Profile section */}
-        <div className="settings-section">
-          <h3>Profile</h3>
-          <div className="settings-field">
-            <label className="settings-label">Email</label>
-            <input className="settings-input" type="email" value={email} disabled />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label">Name</label>
-            <div className="settings-inline">
-              <input
-                className="settings-input"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={50}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); }}
-              />
-              <button
-                className="settings-save-btn"
-                onClick={handleSaveName}
-                disabled={nameSaving || name.trim() === originalName}
-              >
-                {nameSaving ? "..." : "Save"}
+        {/* Tabs */}
+        <div className="settings-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`settings-tab${activeTab === tab.key ? " settings-tab-active" : ""}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Account tab */}
+        {activeTab === "account" && (
+          <div className="settings-tab-content">
+            <div className="settings-section">
+              <div className="settings-field">
+                <label className="settings-label">Email</label>
+                <input className="settings-input" type="email" value={email} disabled />
+              </div>
+              <div className="settings-field">
+                <label className="settings-label">Name</label>
+                <div className="settings-inline">
+                  <input
+                    className="settings-input"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={50}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); }}
+                  />
+                  <button
+                    className="settings-save-btn"
+                    onClick={handleSaveName}
+                    disabled={nameSaving || name.trim() === originalName}
+                  >
+                    {nameSaving ? "..." : "Save"}
+                  </button>
+                </div>
+              </div>
+              {nameFeedback && (
+                <div className={`settings-feedback settings-feedback-${nameFeedback.type}`}>
+                  {nameFeedback.message}
+                </div>
+              )}
+            </div>
+
+            <div className="settings-section settings-section-logout">
+              <button className="settings-logout-btn" onClick={onLogout}>
+                Sign out
               </button>
             </div>
           </div>
-          {nameFeedback && (
-            <div className={`settings-feedback settings-feedback-${nameFeedback.type}`}>
-              {nameFeedback.message}
-            </div>
-          )}
-        </div>
+        )}
 
-        {/* Password section */}
-        <div className="settings-section">
-          <h3>Password</h3>
-          <div className="settings-field">
-            <label className="settings-label">Current password</label>
-            <input
-              className="settings-input"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label">New password</label>
-            <input
-              className="settings-input"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label">Confirm new password</label>
-            <input
-              className="settings-input"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              onKeyDown={(e) => { if (e.key === "Enter") handleChangePassword(); }}
-            />
-          </div>
-          <button
-            className="settings-save-btn settings-save-btn-full"
-            onClick={handleChangePassword}
-            disabled={pwSaving}
-          >
-            {pwSaving ? "Changing..." : "Change password"}
-          </button>
-          {pwFeedback && (
-            <div className={`settings-feedback settings-feedback-${pwFeedback.type}`}>
-              {pwFeedback.message}
-            </div>
-          )}
-        </div>
-
-        {/* Dashboard section */}
-        <div className="settings-section">
-          <h3>Dashboard</h3>
-          <div className="settings-field">
-            <label className="settings-toggle-row">
-              <span className="settings-label">Milestone sound</span>
+        {/* Security tab */}
+        {activeTab === "security" && (
+          <div className="settings-tab-content">
+            <div className="settings-section">
+              <div className="settings-field">
+                <label className="settings-label">Current password</label>
+                <input
+                  className="settings-input"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="settings-field">
+                <label className="settings-label">New password</label>
+                <input
+                  className="settings-input"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="settings-field">
+                <label className="settings-label">Confirm new password</label>
+                <input
+                  className="settings-input"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleChangePassword(); }}
+                />
+              </div>
               <button
-                className={`settings-toggle${milestoneSound ? " settings-toggle-on" : ""}`}
-                onClick={onToggleMilestoneSound}
-                role="switch"
-                aria-checked={milestoneSound}
+                className="settings-save-btn settings-save-btn-full"
+                onClick={handleChangePassword}
+                disabled={pwSaving}
               >
-                <span className="settings-toggle-knob" />
+                {pwSaving ? "Changing..." : "Change password"}
               </button>
-            </label>
-            <div className="settings-hint">Play a sound when ARR crosses a milestone</div>
+              {pwFeedback && (
+                <div className={`settings-feedback settings-feedback-${pwFeedback.type}`}>
+                  {pwFeedback.message}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Logout section */}
-        <div className="settings-section settings-section-logout">
-          <button className="settings-logout-btn" onClick={onLogout}>
-            Sign out
-          </button>
-        </div>
+        {/* Preferences tab */}
+        {activeTab === "preferences" && (
+          <div className="settings-tab-content">
+            <div className="settings-section">
+              <div className="settings-field">
+                <label className="settings-toggle-row">
+                  <span className="settings-label">Milestone sound</span>
+                  <button
+                    className={`settings-toggle${milestoneSound ? " settings-toggle-on" : ""}`}
+                    onClick={onToggleMilestoneSound}
+                    role="switch"
+                    aria-checked={milestoneSound}
+                  >
+                    <span className="settings-toggle-knob" />
+                  </button>
+                </label>
+                <div className="settings-hint">Play a sound when ARR crosses a milestone</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
