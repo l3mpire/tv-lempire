@@ -43,6 +43,8 @@ type StatusBarProps = {
   videoPlayerRef: React.RefObject<VideoPlayerHandle | null>;
   videoBlocked: boolean;
   onSaveProgress: () => void;
+  tickerSpeed: 1 | 3 | 10;
+  onCycleTickerSpeed: () => void;
   cinemaMode: boolean;
   onToggleCinemaMode: () => void;
 };
@@ -107,7 +109,7 @@ function VideoSeekBar({ playerRef, onSaveProgress }: { playerRef: React.RefObjec
         value={Math.floor(currentTime)}
         style={{ background: `linear-gradient(to right, var(--accent) ${pct}%, rgba(255,255,255,0.1) ${pct}%)` }}
         onMouseDown={() => { draggingRef.current = true; }}
-        onMouseUp={() => { draggingRef.current = false; }}
+        onMouseUp={() => { draggingRef.current = false; onSaveProgress(); }}
         onChange={(e) => {
           const s = Number(e.target.value);
           setCurrentTime(s);
@@ -152,7 +154,7 @@ const VideoPicker = memo(function VideoPicker({
   );
 });
 
-export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, onToggleVideo, muted, onToggleMuted, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
+export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, onToggleVideo, muted, onToggleMuted, videos, currentVideoIndex, onNextVideo, onPrevVideo, onSelectVideo, videoPlayerRef, videoBlocked, onSaveProgress, tickerSpeed, onCycleTickerSpeed, cinemaMode, onToggleCinemaMode }: StatusBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
@@ -205,25 +207,27 @@ export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, o
             </svg>
           </button>
         </Tooltip>
-        <Tooltip label={muted ? "Unmute" : "Mute"}>
-          <button className="dash-video-toggle" onClick={onToggleMuted} aria-label={muted ? "Unmute video" : "Mute video"}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {muted ? (
-                <>
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </>
-              ) : (
-                <>
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </>
-              )}
-            </svg>
-          </button>
-        </Tooltip>
+        {showVideo && (
+          <Tooltip label={muted ? "Unmute" : "Mute"}>
+            <button className="dash-video-toggle" onClick={onToggleMuted} aria-label={muted ? "Unmute video" : "Mute video"}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {muted ? (
+                  <>
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <line x1="23" y1="9" x2="17" y2="15" />
+                    <line x1="17" y1="9" x2="23" y2="15" />
+                  </>
+                ) : (
+                  <>
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </>
+                )}
+              </svg>
+            </button>
+          </Tooltip>
+        )}
         {showVideo && videoBlocked && (
           <Tooltip label="Playback blocked — click to play">
             <button
@@ -323,8 +327,15 @@ export default memo(function StatusBar({ now, onShowHelp, onLogout, showVideo, o
             </button>
           </Tooltip>
         )}
+        <span className="dash-status-separator" />
+        <Tooltip label="Ticker speed">
+          <button className="dash-video-indicator" onClick={onCycleTickerSpeed}>
+            {tickerSpeed}x
+          </button>
+        </Tooltip>
         <span className="dash-ticker-dot" />
         <span className="dash-ticker-text">Live</span>
+        <span className="dash-status-separator" />
         <Tooltip label="Help">
           <button className="dash-help-btn" onClick={onShowHelp}>?</button>
         </Tooltip>

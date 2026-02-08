@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import LinkedContent from "./LinkedContent";
 
 type ChatMessageProps = {
   id: string;
@@ -33,7 +34,7 @@ export default memo(function ChatMessage({ id, userName, time, content, isOwn, i
           </button>
         )}
       </div>
-      <div className="chat-message-content">{content}</div>
+      <div className="chat-message-content"><LinkedContent content={content} /></div>
     </div>
   );
 });

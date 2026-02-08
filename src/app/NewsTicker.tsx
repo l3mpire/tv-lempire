@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
+import LinkedContent from "./LinkedContent";
 
 type Message = {
   id: string;
@@ -19,9 +20,9 @@ function createBrowserSupabase() {
   return createClient(url, key);
 }
 
-const SCROLL_SPEED = 60; // pixels per second
+const DEFAULT_SCROLL_SPEED = 60; // pixels per second
 
-export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
+export default function NewsTicker({ tvMode = false, scrollSpeed = DEFAULT_SCROLL_SPEED }: { tvMode?: boolean; scrollSpeed?: number }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [renderMessages, setRenderMessages] = useState<Message[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -33,6 +34,9 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
   const groupWidthRef = useRef(0);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
+  const scrollSpeedRef = useRef(scrollSpeed);
+
+  scrollSpeedRef.current = scrollSpeed;
 
   // Fetch messages + subscribe to realtime
   useEffect(() => {
@@ -122,7 +126,7 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
       lastTimeRef.current = timestamp;
 
       if (!pausedRef.current && groupWidthRef.current > 0) {
-        offsetRef.current += SCROLL_SPEED * delta;
+        offsetRef.current += scrollSpeedRef.current * delta;
 
         // Seamless loop: snap back when we've scrolled one full group
         if (offsetRef.current >= groupWidthRef.current) {
@@ -177,7 +181,7 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
                 {!msg.isBreakingNews && (
                   <span className="news-ticker-name">{msg.userName}</span>
                 )}
-                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}>{msg.content}</span>
+                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}><LinkedContent content={msg.content} /></span>
               </span>
             ))}
           </div>
@@ -193,7 +197,7 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
                 {!msg.isBreakingNews && (
                   <span className="news-ticker-name">{msg.userName}</span>
                 )}
-                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}>{msg.content}</span>
+                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}><LinkedContent content={msg.content} /></span>
               </span>
             ))}
           </div>

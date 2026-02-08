@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
+import { extractYoutubeId } from "@/lib/linkify";
 
 const SESSION_COOKIE = "dashboard_session";
 
@@ -17,37 +18,6 @@ async function requireAdmin() {
     .single();
 
   return user?.is_admin ? user : null;
-}
-
-function extractYoutubeId(input: string): string | null {
-  const trimmed = input.trim();
-
-  // Raw ID (11 alphanumeric + dash/underscore chars)
-  if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
-
-  try {
-    const url = new URL(trimmed);
-
-    // youtube.com/watch?v=ID
-    if (url.hostname.includes("youtube.com") && url.searchParams.has("v")) {
-      const v = url.searchParams.get("v")!;
-      if (/^[\w-]{11}$/.test(v)) return v;
-    }
-
-    // youtube.com/embed/ID
-    const embedMatch = url.pathname.match(/\/embed\/([\w-]{11})/);
-    if (embedMatch) return embedMatch[1];
-
-    // youtu.be/ID
-    if (url.hostname === "youtu.be") {
-      const id = url.pathname.slice(1).split("/")[0];
-      if (/^[\w-]{11}$/.test(id)) return id;
-    }
-  } catch {
-    // Not a valid URL
-  }
-
-  return null;
 }
 
 // GET: public — return videos ordered by position

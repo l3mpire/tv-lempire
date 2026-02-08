@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 import ChatMessage from "./ChatMessage";
 import Tooltip from "./Tooltip";
+import { useOnlineUsers } from "./presenceStore";
 
 type Message = {
   id: string;
@@ -43,16 +44,22 @@ export default memo(function ChatOverlay() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [showUsers, setShowUsers] = useState(true);
+  const [verifiedUsers, setVerifiedUsers] = useState<string[]>([]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const onlineUsers = useOnlineUsers();
   const openRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  // Fetch current user
+  // Fetch current user + verified users
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -67,7 +74,18 @@ export default memo(function ChatOverlay() {
         // Not logged in
       }
     };
+    const fetchVerifiedUsers = async () => {
+      try {
+        const res = await fetch("/api/users");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.users) setVerifiedUsers(data.users);
+      } catch {
+        // Ignore
+      }
+    };
     fetchUser();
+    fetchVerifiedUsers();
   }, []);
 
   // Initial fetch + Realtime subscription
@@ -123,6 +141,37 @@ export default memo(function ChatOverlay() {
       setTimeout(scrollToBottom, 50);
     }
   }, [messages, open, scrollToBottom]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(target) &&
+        toggleRef.current &&
+        !toggleRef.current.contains(target)
+      ) {
+        setOpen(false);
+        setFullscreen(false);
+        openRef.current = false;
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Listen for closeChatPanel event (e.g. when YouTube link clicked)
+  useEffect(() => {
+    const handler = () => {
+      setOpen(false);
+      setFullscreen(false);
+      openRef.current = false;
+    };
+    window.addEventListener("closeChatPanel", handler);
+    return () => window.removeEventListener("closeChatPanel", handler);
+  }, []);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -197,12 +246,17 @@ export default memo(function ChatOverlay() {
       {/* Toggle button */}
       <Tooltip label="Chat">
         <button
+          ref={toggleRef}
           className="chat-toggle-btn"
           onClick={() => {
             setOpen((o) => {
               const next = !o;
               openRef.current = next;
-              if (next) setHasUnread(false);
+              if (next) {
+                setHasUnread(false);
+              } else {
+                setFullscreen(false);
+              }
               return next;
             });
           }}
@@ -223,30 +277,86 @@ export default memo(function ChatOverlay() {
 
       {/* Chat panel */}
       {open && (
-        <div className="chat-panel">
+        <div ref={panelRef} className={`chat-panel${fullscreen ? " chat-panel-fullscreen" : ""}`}>
           <div className="chat-header">
-            <span className="chat-title">Chat</span>
-            <span className="chat-count">{messages.length}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className="chat-title">Chat</span>
+              <span className="chat-count">{messages.length}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <button
+                className="chat-fullscreen-btn"
+                onClick={() => setFullscreen((f) => !f)}
+                aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {fullscreen ? (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 1V4H1M9 1V4H13M5 13V10H1M9 13V10H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M1 5V1H5M13 5V1H9M1 9V13H5M13 9V13H9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            <button
+              className="chat-users-toggle"
+              onClick={() => setShowUsers((s) => !s)}
+              aria-label={showUsers ? "Hide users" : "Show users"}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M1 12C1 9.79 2.79 8 5 8C7.21 8 9 9.79 9 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <circle cx="10.5" cy="5" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M8.5 12C8.5 10.34 9.34 9 10.5 9C11.66 9 12.5 10.34 12.5 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              <span className="chat-users-count">
+                {verifiedUsers.length}
+              </span>
+            </button>
+            </div>
           </div>
 
-          <div className="chat-messages" ref={listRef}>
-            {messages.length === 0 && (
-              <div className="chat-empty">No messages yet</div>
+          <div className="chat-body">
+            <div className="chat-messages" ref={listRef}>
+              {messages.length === 0 && (
+                <div className="chat-empty">No messages yet</div>
+              )}
+              {messages.map((msg) => (
+                <ChatMessage
+                  key={msg.id}
+                  id={msg.id}
+                  userName={msg.userName}
+                  time={relativeTime(msg.createdAt)}
+                  content={msg.content}
+                  isOwn={currentUserId === msg.userId}
+                  isAdmin={isAdmin}
+                  isBreakingNews={msg.isBreakingNews}
+                  onDelete={handleDelete}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {showUsers && (
+              <div className="chat-users-sidebar">
+                <div className="chat-users-header">Users</div>
+                <div className="chat-users-list">
+                  {[...verifiedUsers].sort((a, b) => {
+                      const aOnline = onlineUsers.has(a) ? 0 : 1;
+                      const bOnline = onlineUsers.has(b) ? 0 : 1;
+                      if (aOnline !== bOnline) return aOnline - bOnline;
+                      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+                    }).map((name) => (
+                    <div key={name} className="chat-user-item">
+                      <span className={onlineUsers.has(name) ? "chat-user-dot" : "chat-user-dot-offline"} />
+                      {name.toLowerCase()}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-            {messages.map((msg) => (
-              <ChatMessage
-                key={msg.id}
-                id={msg.id}
-                userName={msg.userName}
-                time={relativeTime(msg.createdAt)}
-                content={msg.content}
-                isOwn={currentUserId === msg.userId}
-                isAdmin={isAdmin}
-                isBreakingNews={msg.isBreakingNews}
-                onDelete={handleDelete}
-              />
-            ))}
-            <div ref={messagesEndRef} />
           </div>
 
           <div className="chat-input-area">

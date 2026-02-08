@@ -7,6 +7,7 @@ import NewsTicker from "./NewsTicker";
 import BreakingNewsOverlay from "./BreakingNewsOverlay";
 import StatusBar from "./StatusBar";
 import { useNow } from "./arrTickerStore";
+import { initPresence, cleanupPresence } from "./presenceStore";
 import { getSupabaseBrowser } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -418,12 +419,36 @@ function ARRDashboard() {
   const [breakingNewsActive, setBreakingNewsActive] = useState(false);
   const [videoBlocked, setVideoBlocked] = useState(false);
   const [cinemaMode, setCinemaMode] = useState(false);
+  const cinemaModeRef = useRef(false);
+  const cinemaVideosRef = useRef<Record<string, number>>({});
+  const [tickerSpeed, setTickerSpeed] = useState<1 | 3 | 10>(1);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
   // Active playlist string for the iframe — only changes on initial load
   // or explicit user action (next/prev/select), NOT on realtime updates,
   // so the currently playing video is never interrupted.
   const [playlist, setPlaylist] = useState("");
+
+  // Presence tracking: fetch current user and announce online status
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.user?.name) {
+          initPresence(data.user.name);
+        }
+      } catch {
+        // Not logged in
+      }
+    })();
+    return () => {
+      cancelled = true;
+      cleanupPresence();
+    };
+  }, []);
 
   const buildPlaylist = useCallback((vids: { youtube_id: string }[], index: number) => {
     if (vids.length === 0) return "";
@@ -484,8 +509,57 @@ function ARRDashboard() {
       }
       if (typeof prefs.show_video === "boolean") setShowVideo(prefs.show_video);
       if (typeof prefs.muted === "boolean") setMuted(prefs.muted);
+      if (prefs.ticker_speed === 3 || prefs.ticker_speed === 10) setTickerSpeed(prefs.ticker_speed);
+      if (prefs.cinema_videos && typeof prefs.cinema_videos === "object") {
+        cinemaVideosRef.current = prefs.cinema_videos;
+      }
     });
   }, []);
+
+  // Snapshot of what was playing before cinema mode (to restore on exit)
+  const preCinemaRef = useRef<{ playlist: string; index: number; progress: number } | null>(null);
+  // Ref-based accessors so the playYouTube effect doesn't re-subscribe on every change
+  const videosRef = useRef(videos);
+  videosRef.current = videos;
+  const currentVideoIndexRef = useRef(currentVideoIndex);
+  currentVideoIndexRef.current = currentVideoIndex;
+
+  // Listen for playYouTube events from LinkedContent (clickable YouTube URLs)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { youtubeId } = (e as CustomEvent).detail;
+      if (!youtubeId) return;
+
+      // Save current video + seek position before switching
+      const vids = videosRef.current;
+      const idx = currentVideoIndexRef.current;
+      const currentId = vids[idx]?.youtube_id;
+      const currentTime = videoPlayerRef.current?.getCurrentTime() ?? 0;
+      if (currentId) {
+        fetch("/api/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_video: currentId, video_progress: Math.floor(currentTime) }),
+        }).catch(() => {});
+        preCinemaRef.current = {
+          playlist: buildPlaylist(vids, idx),
+          index: idx,
+          progress: currentTime,
+        };
+      }
+
+      // Resume from saved position if we've watched this video before
+      const savedProgress = cinemaVideosRef.current[youtubeId] ?? 0;
+
+      setShowVideo(true);
+      setCinemaMode(true);
+      cinemaModeRef.current = true;
+      setVideoProgress(savedProgress);
+      setPlaylist(youtubeId);
+    };
+    window.addEventListener("playYouTube", handler);
+    return () => window.removeEventListener("playYouTube", handler);
+  }, [buildPlaylist]);
 
   // Subscribe to realtime video changes from admin
   useEffect(() => {
@@ -515,11 +589,23 @@ function ARRDashboard() {
   }, []);
 
   const saveVideoProgress = useCallback((videoId: string, seconds: number) => {
-    fetch("/api/preferences", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ current_video: videoId, video_progress: Math.floor(seconds) }),
-    }).catch(() => {});
+    const secs = Math.floor(seconds);
+    if (cinemaModeRef.current) {
+      // Cinema mode: save to cinema_videos map, don't touch current_video
+      cinemaVideosRef.current = { ...cinemaVideosRef.current, [videoId]: secs };
+      fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cinema_videos: cinemaVideosRef.current }),
+      }).catch(() => {});
+    } else {
+      // Normal mode: save current_video + progress
+      fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_video: videoId, video_progress: secs }),
+      }).catch(() => {});
+    }
   }, []);
 
   const handleSaveProgress = useCallback(() => {
@@ -582,7 +668,18 @@ function ARRDashboard() {
         onToggleVideo={() => {
           setShowVideo((v) => {
             const next = !v;
-            if (!next) setCinemaMode(false);
+            if (!next) {
+              // Restore previous video if exiting cinema by hiding video
+              if (cinemaMode && preCinemaRef.current) {
+                const snap = preCinemaRef.current;
+                preCinemaRef.current = null;
+                setCurrentVideoIndex(snap.index);
+                setVideoProgress(snap.progress);
+                setPlaylist(snap.playlist);
+              }
+              setCinemaMode(false);
+              cinemaModeRef.current = false;
+            }
             fetch("/api/preferences", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -611,8 +708,33 @@ function ARRDashboard() {
         videoPlayerRef={videoPlayerRef}
         videoBlocked={videoBlocked}
         onSaveProgress={handleSaveProgress}
+        tickerSpeed={tickerSpeed}
+        onCycleTickerSpeed={() => {
+          setTickerSpeed((s) => {
+            const next = s === 1 ? 3 : s === 3 ? 10 : 1;
+            fetch("/api/preferences", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ticker_speed: next }),
+            }).catch(() => {});
+            return next as 1 | 3 | 10;
+          });
+        }}
         cinemaMode={cinemaMode}
-        onToggleCinemaMode={() => setCinemaMode((c) => !c)}
+        onToggleCinemaMode={() => {
+          setCinemaMode((c) => {
+            if (c && preCinemaRef.current) {
+              // Exiting cinema mode — restore previous video
+              const snap = preCinemaRef.current;
+              preCinemaRef.current = null;
+              setCurrentVideoIndex(snap.index);
+              setVideoProgress(snap.progress);
+              setPlaylist(snap.playlist);
+            }
+            cinemaModeRef.current = !c;
+            return !c;
+          });
+        }}
       />
 
       {/* Breaking News fullscreen overlay */}
@@ -657,6 +779,8 @@ function ARRDynamic({
   videoPlayerRef,
   videoBlocked,
   onSaveProgress,
+  tickerSpeed,
+  onCycleTickerSpeed,
   cinemaMode,
   onToggleCinemaMode,
 }: {
@@ -676,6 +800,8 @@ function ARRDynamic({
   videoPlayerRef: React.RefObject<VideoPlayerHandle | null>;
   videoBlocked: boolean;
   onSaveProgress: () => void;
+  tickerSpeed: 1 | 3 | 10;
+  onCycleTickerSpeed: () => void;
   cinemaMode: boolean;
   onToggleCinemaMode: () => void;
 }) {
@@ -775,12 +901,12 @@ function ARRDynamic({
           </div>
 
           {/* News ticker */}
-          <NewsTicker tvMode={tvMode} />
+          <NewsTicker tvMode={tvMode} scrollSpeed={tickerSpeed * 60} />
         </>
       )}
 
       {/* Status bar (hidden in TV mode) */}
-      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
+      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} tickerSpeed={tickerSpeed} onCycleTickerSpeed={onCycleTickerSpeed} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
     </>
   );
 }
