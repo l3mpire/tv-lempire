@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin, escapeHtml } from "@/lib/auth";
+import { postToSlack } from "@/lib/slack";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -106,6 +107,15 @@ export async function PATCH(request: NextRequest) {
   if (typeof verified === "boolean") {
     update.verified = verified;
     if (verified) update.verification_token = null;
+
+    if (verified) {
+      const { data: verifiedUser } = await supabase
+        .from("users")
+        .select("name")
+        .eq("id", userId)
+        .single();
+      postToSlack("System", `${verifiedUser?.name ?? "Someone"} just joined`, false).catch(console.error);
+    }
   }
 
   if (Object.keys(update).length === 0) {

@@ -10,12 +10,16 @@ type BNMessage = {
 
 const SCROLL_SPEED = 80; // px per second
 
+const TV_AUTO_DISMISS_MS = 30_000;
+
 export default function BreakingNewsOverlay({
   onPause,
   onResume,
+  tvMode = false,
 }: {
   onPause: () => void;
   onResume: () => void;
+  tvMode?: boolean;
 }) {
   const [message, setMessage] = useState<BNMessage | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -59,6 +63,19 @@ export default function BreakingNewsOverlay({
 
     onPause();
   }, [message, onPause]);
+
+  const handleDismiss = useCallback(() => {
+    setMessage(null);
+    offsetRef.current = 0;
+    onResume();
+  }, [onResume]);
+
+  // Auto-dismiss after 30s in TV mode
+  useEffect(() => {
+    if (!message || !tvMode) return;
+    const timer = setTimeout(handleDismiss, TV_AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [message, tvMode, handleDismiss]);
 
   // Measure text width
   const measureText = useCallback(() => {
@@ -106,12 +123,6 @@ export default function BreakingNewsOverlay({
       lastTimeRef.current = 0;
     };
   }, [message, measureText]);
-
-  const handleDismiss = useCallback(() => {
-    setMessage(null);
-    offsetRef.current = 0;
-    onResume();
-  }, [onResume]);
 
   if (!message) return null;
 

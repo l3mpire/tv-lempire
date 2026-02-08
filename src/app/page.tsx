@@ -757,6 +757,7 @@ function ARRDashboard() {
       <BreakingNewsOverlay
         onPause={() => setBreakingNewsActive(true)}
         onResume={() => setBreakingNewsActive(false)}
+        tvMode={tvMode}
       />
 
       {/* TV start overlay — click to unmute */}
