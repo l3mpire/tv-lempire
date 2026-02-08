@@ -9,6 +9,7 @@ type Message = {
   userId: string;
   userName: string;
   createdAt: string;
+  isBreakingNews?: boolean;
 };
 
 function createBrowserSupabase() {
@@ -61,6 +62,10 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
         });
+        // Trigger BN overlay for remote clients (especially TV mode where ChatOverlay is not mounted)
+        if (msg.isBreakingNews) {
+          window.dispatchEvent(new CustomEvent("breakingNews", { detail: msg }));
+        }
       })
       .on("broadcast", { event: "delete_message" }, ({ payload }) => {
         const { id } = payload as { id: string };
@@ -163,22 +168,32 @@ export default function NewsTicker({ tvMode = false }: { tvMode?: boolean }) {
           <div ref={groupRef} className="news-ticker-group">
             {renderMessages.map((msg) => (
               <span key={msg.id} className="news-ticker-item">
+                {msg.isBreakingNews && (
+                  <span className="news-ticker-badge-bn">BREAKING</span>
+                )}
                 {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
                   <span className="news-ticker-badge-new">🔥 new</span>
                 )}
-                <span className="news-ticker-name">{msg.userName}</span>
-                <span className="news-ticker-content">{msg.content}</span>
+                {!msg.isBreakingNews && (
+                  <span className="news-ticker-name">{msg.userName}</span>
+                )}
+                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}>{msg.content}</span>
               </span>
             ))}
           </div>
           <div className="news-ticker-group">
             {renderMessages.map((msg) => (
               <span key={`dup-${msg.id}`} className="news-ticker-item">
+                {msg.isBreakingNews && (
+                  <span className="news-ticker-badge-bn">BREAKING</span>
+                )}
                 {Date.now() - new Date(msg.createdAt).getTime() < 3600_000 && (
                   <span className="news-ticker-badge-new">🔥 new</span>
                 )}
-                <span className="news-ticker-name">{msg.userName}</span>
-                <span className="news-ticker-content">{msg.content}</span>
+                {!msg.isBreakingNews && (
+                  <span className="news-ticker-name">{msg.userName}</span>
+                )}
+                <span className={`news-ticker-content${msg.isBreakingNews ? " news-ticker-content-bn" : ""}`}>{msg.content}</span>
               </span>
             ))}
           </div>

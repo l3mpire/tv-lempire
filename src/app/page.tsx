@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef, memo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef, memo, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import SplitFlapDisplay from "./SplitFlapDisplay";
 import NewsTicker from "./NewsTicker";
+import BreakingNewsOverlay from "./BreakingNewsOverlay";
 import StatusBar from "./StatusBar";
 import { useNow } from "./arrTickerStore";
 import { getSupabaseBrowser } from "@/lib/supabase";
@@ -182,31 +183,205 @@ function HelpPopup({ onClose }: { onClose: () => void }) {
 
 const DEFAULT_VIDEO_ID = "IoVyO6SyKZk";
 
-const VideoBackground = memo(function VideoBackground({
-  showVideo,
-  playlist,
-  muted,
-}: {
+export type VideoPlayerHandle = {
+  seekTo: (seconds: number) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  getPlayerState: () => number;
+  playVideo: () => void;
+  pauseVideo: () => void;
+};
+
+// ── YouTube IFrame API loader (idempotent) ──────────────────
+let ytApiPromise: Promise<void> | null = null;
+function loadYouTubeAPI(): Promise<void> {
+  if (ytApiPromise) return ytApiPromise;
+  if (typeof window !== "undefined" && window.YT?.Player) {
+    ytApiPromise = Promise.resolve();
+    return ytApiPromise;
+  }
+  ytApiPromise = new Promise<void>((resolve) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      prev?.();
+      resolve();
+    };
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(script);
+  });
+  return ytApiPromise;
+}
+
+const VideoBackground = memo(forwardRef<VideoPlayerHandle, {
   showVideo: boolean;
   playlist: string;
   muted: boolean;
-}) {
+  paused?: boolean;
+  initialProgress: number;
+  onProgressUpdate: (videoId: string, seconds: number) => void;
+  onPlaybackBlocked: (blocked: boolean) => void;
+  cinemaMode?: boolean;
+}>(function VideoBackground({
+  showVideo,
+  playlist,
+  muted,
+  paused,
+  initialProgress,
+  onProgressUpdate,
+  onPlaybackBlocked,
+  cinemaMode,
+}, ref) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YT.Player | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialSeekDoneRef = useRef(false);
+  const onProgressUpdateRef = useRef(onProgressUpdate);
+  onProgressUpdateRef.current = onProgressUpdate;
+  const onPlaybackBlockedRef = useRef(onPlaybackBlocked);
+  onPlaybackBlockedRef.current = onPlaybackBlocked;
+
+  useImperativeHandle(ref, () => ({
+    seekTo: (s: number) => { try { playerRef.current?.seekTo(s, true); } catch { /* ignore */ } },
+    getCurrentTime: () => { try { return playerRef.current?.getCurrentTime() ?? 0; } catch { return 0; } },
+    getDuration: () => { try { return playerRef.current?.getDuration() ?? 0; } catch { return 0; } },
+    getPlayerState: () => { try { return playerRef.current?.getPlayerState() ?? -1; } catch { return -1; } },
+    playVideo: () => { try { playerRef.current?.playVideo(); } catch { /* ignore */ } },
+    pauseVideo: () => { try { playerRef.current?.pauseVideo(); } catch { /* ignore */ } },
+  }));
+
+  // Create / destroy player when showVideo changes
+  useEffect(() => {
+    if (!showVideo) {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      if (playerRef.current) {
+        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        playerRef.current = null;
+      }
+      if (containerRef.current) containerRef.current.innerHTML = "";
+      initialSeekDoneRef.current = false;
+      return;
+    }
+
+    const ids = (playlist || DEFAULT_VIDEO_ID).split(",");
+    let destroyed = false;
+
+    loadYouTubeAPI().then(() => {
+      if (destroyed || !containerRef.current) return;
+      // Create a child div that YT.Player will replace with an iframe
+      const el = document.createElement("div");
+      containerRef.current.prepend(el);
+
+      const player = new YT.Player(el, {
+        playerVars: {
+          autoplay: 1,
+          mute: muted ? 1 : 0,
+          loop: 1,
+          controls: 0,
+          showinfo: 0,
+          modestbranding: 1,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin,
+          playlist: ids.join(","),
+        },
+        videoId: ids[0],
+        events: {
+          onReady: () => {
+            if (destroyed) return;
+            player.setLoop(true);
+
+            // Seek to saved progress on first load
+            if (!initialSeekDoneRef.current && initialProgress > 0) {
+              player.seekTo(initialProgress, true);
+            }
+            initialSeekDoneRef.current = true;
+
+            // Check if autoplay was blocked after a short delay
+            setTimeout(() => {
+              if (destroyed || !playerRef.current) return;
+              const state = playerRef.current.getPlayerState();
+              if (state !== YT.PlayerState.PLAYING) {
+                onPlaybackBlockedRef.current(true);
+              }
+            }, 1500);
+
+            // Start progress polling every 10s
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = setInterval(() => {
+              try {
+                if (!playerRef.current) return;
+                const state = playerRef.current.getPlayerState();
+                if (state !== YT.PlayerState.PLAYING) return;
+                const currentTime = playerRef.current.getCurrentTime();
+                const plList = playerRef.current.getPlaylist();
+                const plIndex = playerRef.current.getPlaylistIndex();
+                const videoId = plList?.[plIndex] ?? ids[0];
+                onProgressUpdateRef.current(videoId, currentTime);
+              } catch { /* player might not be ready */ }
+            }, 10_000);
+          },
+          onStateChange: (event: YT.OnStateChangeEvent) => {
+            if (destroyed) return;
+            if (event.data === YT.PlayerState.PLAYING) {
+              onPlaybackBlockedRef.current(false);
+            }
+          },
+        },
+      });
+      playerRef.current = player;
+    });
+
+    return () => {
+      destroyed = true;
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      if (playerRef.current) {
+        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        playerRef.current = null;
+      }
+      if (containerRef.current) containerRef.current.innerHTML = "";
+      initialSeekDoneRef.current = false;
+    };
+  // Recreate only when showVideo or playlist changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showVideo, playlist]);
+
+  // Mute / unmute without recreating the player
+  useEffect(() => {
+    if (!playerRef.current) return;
+    try {
+      if (muted) playerRef.current.mute();
+      else playerRef.current.unMute();
+    } catch { /* ignore */ }
+  }, [muted]);
+
+  // Pause / resume without recreating the player
+  useEffect(() => {
+    if (!playerRef.current) return;
+    try {
+      if (paused) playerRef.current.pauseVideo();
+      else playerRef.current.playVideo();
+    } catch { /* ignore */ }
+  }, [paused]);
+
   if (!showVideo) return null;
 
-  const ids = playlist || DEFAULT_VIDEO_ID;
-  const firstId = ids.split(",")[0];
-
   return (
-    <div className="dash-video-bg">
-      <iframe
-        src={`https://www.youtube.com/embed/${firstId}?autoplay=1&mute=${muted ? 1 : 0}&loop=1&playlist=${ids}&controls=0&showinfo=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&rel=0`}
-        allow="autoplay"
-        className="dash-video-iframe"
-      />
-      <div className="dash-video-dim" />
+    <div className={`dash-video-bg${cinemaMode ? " dash-video-cinema" : ""}`}>
+      <div ref={containerRef} />
+      {!cinemaMode && <div className="dash-video-dim" />}
     </div>
   );
-});
+}));
 
 const AmbientBackground = memo(function AmbientBackground() {
   return (
@@ -223,6 +398,7 @@ function ARRDashboard() {
   const [showHelp, setShowHelp] = useState(false);
   const [videos, setVideos] = useState<{ youtube_id: string; title: string }[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [videoProgress, setVideoProgress] = useState(0);
   const router = useRouter();
 
   const handleLogout = useCallback(async () => {
@@ -239,6 +415,10 @@ function ARRDashboard() {
   const [showVideo, setShowVideo] = useState(() => !searchParams.has("novideo"));
   const [muted, setMuted] = useState(true);
   const [tvStarted, setTvStarted] = useState(false);
+  const [breakingNewsActive, setBreakingNewsActive] = useState(false);
+  const [videoBlocked, setVideoBlocked] = useState(false);
+  const [cinemaMode, setCinemaMode] = useState(false);
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
   // Active playlist string for the iframe — only changes on initial load
   // or explicit user action (next/prev/select), NOT on realtime updates,
@@ -292,7 +472,12 @@ function ARRDashboard() {
         let idx = 0;
         if (typeof prefs.current_video === "string") {
           const found = vids.findIndex((v: { youtube_id: string }) => v.youtube_id === prefs.current_video);
-          if (found >= 0) idx = found;
+          if (found >= 0) {
+            idx = found;
+            if (typeof prefs.video_progress === "number") {
+              setVideoProgress(prefs.video_progress);
+            }
+          }
         }
         setCurrentVideoIndex(idx);
         setPlaylist(buildPlaylist(vids, idx));
@@ -312,7 +497,10 @@ function ARRDashboard() {
       .on("broadcast", { event: "play_now" }, ({ payload }) => {
         if (!tvModeRef.current) return;
         const { youtube_id } = payload;
-        if (youtube_id) setPlaylist(youtube_id);
+        if (youtube_id) {
+          setVideoProgress(0);
+          setPlaylist(youtube_id);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -322,14 +510,31 @@ function ARRDashboard() {
     fetch("/api/preferences", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ current_video: youtubeId }),
+      body: JSON.stringify({ current_video: youtubeId, video_progress: 0 }),
     }).catch(() => {});
   }, []);
+
+  const saveVideoProgress = useCallback((videoId: string, seconds: number) => {
+    fetch("/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_video: videoId, video_progress: Math.floor(seconds) }),
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveProgress = useCallback(() => {
+    const player = videoPlayerRef.current;
+    if (!player) return;
+    const time = player.getCurrentTime();
+    const videoId = videos[currentVideoIndex]?.youtube_id;
+    if (videoId) saveVideoProgress(videoId, time);
+  }, [videos, currentVideoIndex, saveVideoProgress]);
 
   const handleNextVideo = useCallback(() => {
     setCurrentVideoIndex((i) => {
       const next = videos.length > 0 ? (i + 1) % videos.length : 0;
       saveCurrentVideo(videos[next]?.youtube_id);
+      setVideoProgress(0);
       setPlaylist(buildPlaylist(videos, next));
       return next;
     });
@@ -339,6 +544,7 @@ function ARRDashboard() {
     setCurrentVideoIndex((i) => {
       const next = videos.length > 0 ? (i - 1 + videos.length) % videos.length : 0;
       saveCurrentVideo(videos[next]?.youtube_id);
+      setVideoProgress(0);
       setPlaylist(buildPlaylist(videos, next));
       return next;
     });
@@ -347,6 +553,7 @@ function ARRDashboard() {
   const handleSelectVideo = useCallback((index: number) => {
     setCurrentVideoIndex(index);
     saveCurrentVideo(videos[index]?.youtube_id);
+    setVideoProgress(0);
     setPlaylist(buildPlaylist(videos, index));
   }, [videos, saveCurrentVideo, buildPlaylist]);
 
@@ -361,10 +568,10 @@ function ARRDashboard() {
   return (
     <div className="dash-wrapper">
       {/* Video background */}
-      <VideoBackground showVideo={showVideo} playlist={playlist} muted={muted} />
+      <VideoBackground ref={videoPlayerRef} showVideo={showVideo} playlist={playlist} muted={muted} paused={breakingNewsActive} initialProgress={videoProgress} onProgressUpdate={saveVideoProgress} onPlaybackBlocked={setVideoBlocked} cinemaMode={cinemaMode} />
 
-      {/* Ambient background */}
-      <AmbientBackground />
+      {/* Ambient background (hidden in cinema mode) */}
+      {!cinemaMode && <AmbientBackground />}
 
       <ARRDynamic
         config={config}
@@ -375,6 +582,7 @@ function ARRDashboard() {
         onToggleVideo={() => {
           setShowVideo((v) => {
             const next = !v;
+            if (!next) setCinemaMode(false);
             fetch("/api/preferences", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -400,6 +608,17 @@ function ARRDashboard() {
         onNextVideo={handleNextVideo}
         onPrevVideo={handlePrevVideo}
         onSelectVideo={handleSelectVideo}
+        videoPlayerRef={videoPlayerRef}
+        videoBlocked={videoBlocked}
+        onSaveProgress={handleSaveProgress}
+        cinemaMode={cinemaMode}
+        onToggleCinemaMode={() => setCinemaMode((c) => !c)}
+      />
+
+      {/* Breaking News fullscreen overlay */}
+      <BreakingNewsOverlay
+        onPause={() => setBreakingNewsActive(true)}
+        onResume={() => setBreakingNewsActive(false)}
       />
 
       {/* TV start overlay — click to unmute */}
@@ -435,6 +654,11 @@ function ARRDynamic({
   onNextVideo,
   onPrevVideo,
   onSelectVideo,
+  videoPlayerRef,
+  videoBlocked,
+  onSaveProgress,
+  cinemaMode,
+  onToggleCinemaMode,
 }: {
   config: Config;
   onShowHelp: () => void;
@@ -449,6 +673,11 @@ function ARRDynamic({
   onNextVideo: () => void;
   onPrevVideo: () => void;
   onSelectVideo: (index: number) => void;
+  videoPlayerRef: React.RefObject<VideoPlayerHandle | null>;
+  videoBlocked: boolean;
+  onSaveProgress: () => void;
+  cinemaMode: boolean;
+  onToggleCinemaMode: () => void;
 }) {
   const now = useNow();
   const lemlistARR = computeARR(config.lemlist, now);
@@ -488,66 +717,70 @@ function ARRDynamic({
 
   return (
     <>
-      {/* Two-column layout */}
-      <div className="dash-layout">
-        {/* Left: product cards */}
-        <div className="dash-left">
-          <ProductCard
-            name="Sales Engagement"
-            logos={["/logos/lemlist.svg", "/logos/lemwarm.svg", "/logos/lemcal.svg"]}
-            arr={salesEngagementARR}
-            baseARR={salesEngagementBaseARR}
-            monthGrowth={salesEngagementMonthGrowth}
-            delay={0.3}
-          />
-          <ProductCard
-            name="Conversation Intelligence"
-            logos={["/logos/claap.svg"]}
-            arr={claapARR}
-            baseARR={config.claap.arr}
-            monthGrowth={config.claap.monthGrowth}
-            delay={0.5}
-          />
-          <ProductCard
-            name="Social Selling"
-            logos={["/logos/taplio.svg", "/logos/tweethunter.svg"]}
-            arr={socialSellingARR}
-            baseARR={socialSellingBaseARR}
-            monthGrowth={socialSellingMonthGrowth}
-            delay={0.7}
-          />
-        </div>
-
-        {/* Right: total */}
-        <div className="dash-right">
-          <div className="total-card">
-            <div className="total-brand">lempire</div>
-
-            <div className="total-label">
-              <span className="dash-label-line" />
-              Annual Recurring Revenue
-              <span className="dash-label-line dash-label-line-r" />
+      {/* Two-column layout (hidden in cinema mode) */}
+      {!cinemaMode && (
+        <>
+          <div className="dash-layout">
+            {/* Left: product cards */}
+            <div className="dash-left">
+              <ProductCard
+                name="Sales Engagement"
+                logos={["/logos/lemlist.svg", "/logos/lemwarm.svg", "/logos/lemcal.svg"]}
+                arr={salesEngagementARR}
+                baseARR={salesEngagementBaseARR}
+                monthGrowth={salesEngagementMonthGrowth}
+                delay={0.3}
+              />
+              <ProductCard
+                name="Conversation Intelligence"
+                logos={["/logos/claap.svg"]}
+                arr={claapARR}
+                baseARR={config.claap.arr}
+                monthGrowth={config.claap.monthGrowth}
+                delay={0.5}
+              />
+              <ProductCard
+                name="Social Selling"
+                logos={["/logos/taplio.svg", "/logos/tweethunter.svg"]}
+                arr={socialSellingARR}
+                baseARR={socialSellingBaseARR}
+                monthGrowth={socialSellingMonthGrowth}
+                delay={0.7}
+              />
             </div>
 
-            <div className="total-amount total-amount-glow">
-              <SplitFlapDisplay value={`$${formatARR(totalARR)}`} />
-            </div>
+            {/* Right: total */}
+            <div className="dash-right">
+              <div className="total-card">
+                <div className="total-brand">lempire</div>
 
-            <div
-              className="total-month-growth"
-              style={{ color: growthColor(totalMonthGrowth) }}
-            >
-              {formatMonthGrowth(totalMonthGrowth)} {formatGrowthLine(totalMonthGrowth, totalBaseARR)}
+                <div className="total-label">
+                  <span className="dash-label-line" />
+                  Annual Recurring Revenue
+                  <span className="dash-label-line dash-label-line-r" />
+                </div>
+
+                <div className="total-amount total-amount-glow">
+                  <SplitFlapDisplay value={`$${formatARR(totalARR)}`} />
+                </div>
+
+                <div
+                  className="total-month-growth"
+                  style={{ color: growthColor(totalMonthGrowth) }}
+                >
+                  {formatMonthGrowth(totalMonthGrowth)} {formatGrowthLine(totalMonthGrowth, totalBaseARR)}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* News ticker */}
-      <NewsTicker tvMode={tvMode} />
+          {/* News ticker */}
+          <NewsTicker tvMode={tvMode} />
+        </>
+      )}
 
       {/* Status bar (hidden in TV mode) */}
-      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} />}
+      {!tvMode && <StatusBar now={now} onShowHelp={onShowHelp} onLogout={onLogout} showVideo={showVideo} onToggleVideo={onToggleVideo} muted={muted} onToggleMuted={onToggleMuted} videos={videos} currentVideoIndex={currentVideoIndex} onNextVideo={onNextVideo} onPrevVideo={onPrevVideo} onSelectVideo={onSelectVideo} videoPlayerRef={videoPlayerRef} videoBlocked={videoBlocked} onSaveProgress={onSaveProgress} cinemaMode={cinemaMode} onToggleCinemaMode={onToggleCinemaMode} />}
     </>
   );
 }

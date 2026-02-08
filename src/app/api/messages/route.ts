@@ -16,7 +16,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("messages")
-    .select("id, content, created_at, user_id, users(name)")
+    .select("id, content, created_at, user_id, is_breaking_news, users(name)")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -31,6 +31,7 @@ export async function GET() {
     userId: msg.user_id,
     userName: (msg.users as { name: string } | null)?.name ?? "Unknown",
     createdAt: msg.created_at,
+    isBreakingNews: !!msg.is_breaking_news,
   }));
 
   return NextResponse.json({ messages });
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   const userId = sessionValue;
 
-  let body: { content?: string };
+  let body: { content?: string; isBreakingNews?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
   // Verify user exists
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("id, name")
+    .select("id, name, is_admin")
     .eq("id", userId)
     .single();
 
@@ -77,10 +78,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Only admins can send breaking news
+  const isBreakingNews = !!(body.isBreakingNews && user.is_admin);
+
   const { data: msg, error: insertError } = await supabase
     .from("messages")
-    .insert({ user_id: userId, content })
-    .select("id, content, created_at")
+    .insert({ user_id: userId, content, is_breaking_news: isBreakingNews })
+    .select("id, content, created_at, is_breaking_news")
     .single();
 
   if (insertError || !msg) {
@@ -94,6 +98,7 @@ export async function POST(request: NextRequest) {
       userId: userId,
       userName: user.name,
       createdAt: msg.created_at,
+      isBreakingNews: !!msg.is_breaking_news,
     },
   });
 }

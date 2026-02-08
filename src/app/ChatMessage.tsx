@@ -9,14 +9,17 @@ type ChatMessageProps = {
   content: string;
   isOwn: boolean;
   isAdmin: boolean;
+  isBreakingNews?: boolean;
   onDelete: (id: string) => void;
 };
 
-export default memo(function ChatMessage({ id, userName, time, content, isOwn, isAdmin, onDelete }: ChatMessageProps) {
+export default memo(function ChatMessage({ id, userName, time, content, isOwn, isAdmin, isBreakingNews, onDelete }: ChatMessageProps) {
   return (
-    <div className="chat-message">
+    <div className={`chat-message${isBreakingNews ? " chat-message-breaking" : ""}`}>
       <div className="chat-message-header">
-        <span className="chat-message-user">{userName}</span>
+        <span className={`chat-message-user${isBreakingNews ? " chat-message-user-bn" : ""}`}>
+          {isBreakingNews ? "BREAKING NEWS" : userName}
+        </span>
         <span className="chat-message-time">{time}</span>
         {(isOwn || isAdmin) && (
           <button

@@ -11,6 +11,7 @@ type Message = {
   userId: string;
   userName: string;
   createdAt: string;
+  isBreakingNews?: boolean;
 };
 
 function relativeTime(dateStr: string): string {
@@ -38,8 +39,11 @@ export default memo(function ChatOverlay() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [breakingNews, setBreakingNews] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const openRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -94,6 +98,7 @@ export default memo(function ChatOverlay() {
         if (!msg?.id) return;
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
+          if (!openRef.current) setHasUnread(true);
           return [...prev, msg];
         });
       })
@@ -123,18 +128,20 @@ export default memo(function ChatOverlay() {
     const content = input.trim();
     if (!content || sending) return;
 
+    const isBN = breakingNews && isAdmin;
     setSending(true);
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, isBreakingNews: isBN }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setMessages((prev) => [...prev, data.message]);
         setInput("");
+        setBreakingNews(false);
 
         // Broadcast to other clients
         channelRef.current?.send({
@@ -142,6 +149,11 @@ export default memo(function ChatOverlay() {
           event: "new_message",
           payload: data.message,
         });
+
+        // Trigger BN overlay (local + other tabs via broadcast)
+        if (isBN) {
+          window.dispatchEvent(new CustomEvent("breakingNews", { detail: data.message }));
+        }
       }
     } catch (e) {
       console.error("Failed to send message:", e);
@@ -186,7 +198,14 @@ export default memo(function ChatOverlay() {
       <Tooltip label="Chat">
         <button
           className="chat-toggle-btn"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            setOpen((o) => {
+              const next = !o;
+              openRef.current = next;
+              if (next) setHasUnread(false);
+              return next;
+            });
+          }}
           aria-label={open ? "Close chat" : "Open chat"}
         >
           {open ? (
@@ -198,6 +217,7 @@ export default memo(function ChatOverlay() {
               <path d="M2 3.5C2 2.67 2.67 2 3.5 2H12.5C13.33 2 14 2.67 14 3.5V9.5C14 10.33 13.33 11 12.5 11H5L2 14V3.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
             </svg>
           )}
+          {hasUnread && !open && <span className="chat-unread-dot" />}
         </button>
       </Tooltip>
 
@@ -222,6 +242,7 @@ export default memo(function ChatOverlay() {
                 content={msg.content}
                 isOwn={currentUserId === msg.userId}
                 isAdmin={isAdmin}
+                isBreakingNews={msg.isBreakingNews}
                 onDelete={handleDelete}
               />
             ))}
@@ -231,14 +252,24 @@ export default memo(function ChatOverlay() {
           <div className="chat-input-area">
             <input
               type="text"
-              className="chat-input"
-              placeholder="Type a message..."
+              className={`chat-input${breakingNews ? " chat-input-bn" : ""}`}
+              placeholder={breakingNews ? "Breaking news..." : "Type a message..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               maxLength={500}
               disabled={sending}
             />
+            {isAdmin && (
+              <label className="chat-bn-toggle" title="Breaking News">
+                <input
+                  type="checkbox"
+                  checked={breakingNews}
+                  onChange={(e) => setBreakingNews(e.target.checked)}
+                />
+                <span className="chat-bn-icon">BN</span>
+              </label>
+            )}
             <button
               className="chat-send-btn"
               onClick={handleSend}
