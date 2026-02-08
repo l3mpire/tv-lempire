@@ -516,7 +516,7 @@ export default function AdminPage() {
 
         {/* USERS */}
         <div className="border border-zinc-800 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users</h2>
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Users <span className="text-zinc-500 font-mono text-sm font-normal">{users.length}</span></h2>
           {users.length === 0 ? (
             <span className="text-zinc-500">Loading users...</span>
           ) : (
@@ -598,7 +598,7 @@ export default function AdminPage() {
 
         {/* BACKGROUND VIDEOS */}
         <div className="border border-zinc-800 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos</h2>
+          <h2 className="text-lg font-semibold mb-4 text-zinc-200">Background Videos <span className="text-zinc-500 font-mono text-sm font-normal">{videos.length}</span></h2>
 
           <div className="flex gap-2 mb-4">
             <input
