@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     .update({ verified: true, verification_token: null })
     .eq("id", user.id);
 
-  postToSlack("System", `${fullUser?.name ?? "Someone"} just joined`, false).catch(console.error);
+  await postToSlack("System", `${fullUser?.name ?? "Someone"} just joined`, false).catch(console.error);
 
   return NextResponse.redirect(new URL("/login?verified=1", request.url));
 }
