@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const MILESTONE_STEP = 100_000;
+const MILESTONE_STEP = 10_000;
 
 function getMilestone(arr: number): number {
   return Math.floor(arr / MILESTONE_STEP);

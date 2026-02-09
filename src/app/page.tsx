@@ -433,6 +433,25 @@ function ARRDashboard() {
   // so the currently playing video is never interrupted.
   const [playlist, setPlaylist] = useState("");
 
+  // Spacebar → toggle play/pause video
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      const player = videoPlayerRef.current;
+      if (!player || !showVideo) return;
+      if (player.getPlayerState() === 1) {
+        player.pauseVideo();
+      } else {
+        player.playVideo();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [showVideo]);
+
   // Presence tracking: fetch current user and announce online status
   useEffect(() => {
     let cancelled = false;
