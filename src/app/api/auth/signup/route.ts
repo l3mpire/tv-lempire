@@ -6,7 +6,7 @@ import { Resend } from "resend";
 import { getSupabase } from "@/lib/supabase";
 import { SESSION_COOKIE, escapeHtml } from "@/lib/auth";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
-const ALLOWED_DOMAINS = ["lempire.co", "claap.io", "lemlist.com"];
+const ALLOWED_DOMAINS = ["lempire.co", "claap.io", "lemlist.com", "taplio.com"];
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; name?: string; password?: string };
