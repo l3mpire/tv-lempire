@@ -218,6 +218,7 @@ export default function AdminPage() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [addingVideo, setAddingVideo] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+  const [refreshResult, setRefreshResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const videosChannelRef = useRef<RealtimeChannel | null>(null);
   const chatChannelRef = useRef<RealtimeChannel | null>(null);
@@ -469,22 +470,23 @@ export default function AdminPage() {
 
   async function refreshFromHolistics() {
     setRefreshing(true);
+    setRefreshResult(null);
     try {
       const res = await fetch("/api/cron/refresh-holistics", {
         credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) {
-        console.error("Failed to refresh from Holistics:", data);
+        setRefreshResult({ type: "error", message: data.error || "Sync failed" });
       } else if (data.config) {
-        // Use fresh data directly from the sync response
-        // to avoid Edge Config cache delay
         setConfig(data.config as Config);
+        setRefreshResult({ type: "success", message: `Synced ${data.updated ?? ""} products from Holistics` });
       } else {
         await fetchConfig();
+        setRefreshResult({ type: "success", message: "Sync completed" });
       }
     } catch (e) {
-      console.error("Failed to refresh from Holistics:", e);
+      setRefreshResult({ type: "error", message: "Network error — could not reach Holistics" });
     }
     setRefreshing(false);
   }
@@ -579,6 +581,18 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+
+        {refreshResult && (
+          <div
+            className={`mb-6 px-4 py-3 rounded text-sm ${
+              refreshResult.type === "error"
+                ? "bg-red-950/50 text-red-400 border border-red-800"
+                : "bg-green-950/50 text-green-400 border border-green-800"
+            }`}
+          >
+            {refreshResult.type === "error" ? "Sync failed: " : ""}{refreshResult.message}
+          </div>
+        )}
 
         {/* USERS */}
         <div className="border border-zinc-800 rounded-lg p-6 mb-8" style={{ contain: 'content' }}>
