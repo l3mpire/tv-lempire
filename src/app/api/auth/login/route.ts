@@ -37,7 +37,24 @@ export async function POST(request: NextRequest) {
     .eq("email", email.toLowerCase().trim())
     .single();
 
-  if (error || !user) {
+  if (error) {
+    console.log(
+      JSON.stringify({
+        event: "login_db_error",
+        email,
+        ip,
+        error: error.message,
+        code: error.code,
+        timestamp: new Date().toISOString(),
+      })
+    );
+    return NextResponse.json(
+      { error: "Server error, please try again" },
+      { status: 500 }
+    );
+  }
+
+  if (!user) {
     console.log(
       JSON.stringify({
         event: "login_attempt",
