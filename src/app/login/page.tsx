@@ -52,7 +52,8 @@ export default function LoginPage() {
         router.push("/");
         router.refresh();
       } else {
-        setError("Invalid credentials");
+        const data = await res.json().catch(() => null);
+        setError(data?.error || `Error ${res.status}`);
       }
     } catch {
       setError("Connection error");

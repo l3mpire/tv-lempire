@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+
+// Inlined to avoid importing @/lib/auth which pulls Node.js crypto (breaks Edge Runtime)
+const SESSION_COOKIE = "dashboard_session";
 
 // /api/ routes skip middleware redirect — they handle auth themselves via
 // requireAdmin()/requireSession() and return JSON 401/403 instead of redirects.
