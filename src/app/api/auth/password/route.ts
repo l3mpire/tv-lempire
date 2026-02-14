@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/auth";
 
 export async function PATCH(request: NextRequest) {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
+  const userId = await getSessionUserId();
 
-  if (!sessionId) {
+  if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -36,7 +34,7 @@ export async function PATCH(request: NextRequest) {
   const { data: user, error: fetchError } = await supabase
     .from("users")
     .select("id, password_hash")
-    .eq("id", sessionId)
+    .eq("id", userId)
     .single();
 
   if (fetchError || !user) {
@@ -52,7 +50,7 @@ export async function PATCH(request: NextRequest) {
   const { error: updateError } = await supabase
     .from("users")
     .update({ password_hash: newHash })
-    .eq("id", sessionId);
+    .eq("id", userId);
 
   if (updateError) {
     return NextResponse.json({ error: "Failed to update password" }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { SESSION_COOKIE, signSession } from "@/lib/auth";
 const SEVEN_DAYS = 60 * 60 * 24 * 7;
 
 export async function POST(request: NextRequest) {
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   // Set session cookie with user UUID
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, user.id, {
+  cookieStore.set(SESSION_COOKIE, signSession(user.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

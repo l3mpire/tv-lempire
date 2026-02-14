@@ -18,30 +18,26 @@ type HolisticsQueryResult = {
 
 import type { ProductConfig } from "@/lib/types";
 
-// This endpoint is called by Vercel Cron or manually from /admin
-// It fetches data from Holistics and stores it in Supabase
+// GET: Vercel Cron only (CRON_SECRET bearer token)
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-
-  // Allow access if:
-  // 1. CRON_SECRET matches (for Vercel Cron)
-  // 2. Session cookie with admin role (for manual refresh from /admin)
-  let authorized = false;
-
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-    authorized = true;
-  }
-
-  if (!authorized) {
-    const admin = await requireAdmin();
-    if (admin) authorized = true;
-  }
-
-  if (!authorized) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return refreshHolistics();
+}
 
+// POST: admin manual refresh from /admin
+export async function POST() {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return refreshHolistics();
+}
+
+async function refreshHolistics() {
   if (!HOLISTICS_API_KEY) {
     return NextResponse.json(
       { error: "HOLISTICS_API_KEY not configured" },

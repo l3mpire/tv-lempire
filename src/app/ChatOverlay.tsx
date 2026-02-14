@@ -89,6 +89,36 @@ export default memo(function ChatOverlay() {
     fetchVerifiedUsers();
   }, [fetchVerifiedUsers]);
 
+  const fetchLatestMessages = useCallback(async () => {
+    try {
+      const res = await fetch("/api/messages?limit=5");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.messages) {
+        const fetched = (data.messages as Message[]).reverse();
+        setMessages(prev => {
+          const ids = new Set(prev.map(m => m.id));
+          const newOnes = fetched.filter(m => !ids.has(m.id));
+          if (newOnes.length === 0) return prev;
+          if (!openRef.current) setHasUnread(true);
+          return [...prev, ...newOnes];
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const refetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch("/api/messages?limit=50");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(data.messages.reverse());
+        setHasMore(!!data.hasMore);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   // Initial fetch + Realtime subscription
   useEffect(() => {
     // 1. Load initial messages via API
@@ -112,19 +142,11 @@ export default memo(function ChatOverlay() {
 
     const channel = supabase
       .channel("chat")
-      .on("broadcast", { event: "new_message" }, ({ payload }) => {
-        const msg = payload as Message;
-        if (!msg?.id) return;
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          if (!openRef.current) setHasUnread(true);
-          return [...prev, msg];
-        });
+      .on("broadcast", { event: "new_message" }, () => {
+        fetchLatestMessages();
       })
-      .on("broadcast", { event: "delete_message" }, ({ payload }) => {
-        const { id } = payload as { id: string };
-        if (!id) return;
-        setMessages((prev) => prev.filter((m) => m.id !== id));
+      .on("broadcast", { event: "delete_message" }, () => {
+        refetchMessages();
       })
       .on("broadcast", { event: "users_changed" }, () => {
         fetchVerifiedUsers();
@@ -137,7 +159,7 @@ export default memo(function ChatOverlay() {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [fetchVerifiedUsers]);
+  }, [fetchVerifiedUsers, fetchLatestMessages, refetchMessages]);
 
   // Re-fetch verified users when an online user is unknown (e.g. newly verified)
   const lastPresenceFetchRef = useRef(0);
@@ -222,11 +244,11 @@ export default memo(function ChatOverlay() {
         setInput("");
         setBreakingNews(false);
 
-        // Broadcast to other clients
+        // Notify other clients to refetch
         channelRef.current?.send({
           type: "broadcast",
           event: "new_message",
-          payload: data.message,
+          payload: {},
         });
 
         // Trigger BN overlay (local + other tabs via broadcast)
@@ -252,11 +274,11 @@ export default memo(function ChatOverlay() {
       if (res.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== messageId));
 
-        // Broadcast deletion to other clients
+        // Notify other clients to refetch
         channelRef.current?.send({
           type: "broadcast",
           event: "delete_message",
-          payload: { id: messageId },
+          payload: {},
         });
       }
     } catch (e) {

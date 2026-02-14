@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/auth";
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
+  const userId = await getSessionUserId();
 
-  if (!sessionId) {
+  if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -15,7 +13,7 @@ export async function GET() {
   const { data: user, error } = await supabase
     .from("users")
     .select("id, name, email, is_admin")
-    .eq("id", sessionId)
+    .eq("id", userId)
     .single();
 
   if (error || !user) {
@@ -33,10 +31,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
+  const userId = await getSessionUserId();
 
-  if (!sessionId) {
+  if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -59,7 +56,7 @@ export async function PATCH(request: NextRequest) {
   const { error } = await supabase
     .from("users")
     .update({ name })
-    .eq("id", sessionId);
+    .eq("id", userId);
 
   if (error) {
     return NextResponse.json({ error: "Failed to update name" }, { status: 500 });

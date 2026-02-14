@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { extractYoutubeId } from "@/lib/linkify";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireSession } from "@/lib/auth";
 
 async function fetchYoutubeTitle(youtubeId: string): Promise<string> {
   try {
@@ -17,9 +17,14 @@ async function fetchYoutubeTitle(youtubeId: string): Promise<string> {
   }
 }
 
-// GET: public — return videos ordered by position
+// GET: return videos ordered by position (requires auth)
 // ?tv=1 filters to tv_enabled videos only
 export async function GET(request: NextRequest) {
+  const user = await requireSession();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const tvOnly = request.nextUrl.searchParams.get("tv") === "1";
   const supabase = getSupabase();
 

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { requireSession } from "@/lib/auth";
 
 export async function GET() {
+  const user = await requireSession();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = getSupabase();
   const { data: users, error } = await supabase
     .from("users")

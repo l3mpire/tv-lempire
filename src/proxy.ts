@@ -7,6 +7,14 @@ import { SESSION_COOKIE } from "@/lib/auth";
 const PUBLIC_PATHS = ["/login", "/signup", "/api/", "/pending", "/reset-password"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function extractUserId(token: string): string | null {
+  const dot = token.lastIndexOf(".");
+  if (dot === -1) return null;
+  const userId = token.substring(0, dot);
+  if (!UUID_RE.test(userId)) return null;
+  return userId;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -15,9 +23,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // All other routes: require session cookie with valid UUID
+  // All other routes: require signed session cookie
   const session = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!session || !UUID_RE.test(session)) {
+  const userId = session ? extractUserId(session) : null;
+  if (!userId) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -27,7 +36,7 @@ export async function proxy(request: NextRequest) {
   const { data: user } = await supabase
     .from("users")
     .select("verified, is_admin")
-    .eq("id", session)
+    .eq("id", userId)
     .single();
 
   // Unverified users → /pending

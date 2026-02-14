@@ -601,10 +601,17 @@ function ARRDashboard() {
       .on("broadcast", { event: "play_now" }, ({ payload }) => {
         if (!tvModeRef.current) return;
         const { youtube_id } = payload;
-        if (youtube_id) {
-          setVideoProgress(0);
-          setPlaylist(youtube_id);
-        }
+        if (!youtube_id) return;
+        // Verify the video exists in the TV playlist before playing
+        fetch("/api/videos?tv=1")
+          .then(res => res.json())
+          .then(data => {
+            if (data.videos?.some((v: { youtube_id: string }) => v.youtube_id === youtube_id)) {
+              setVideoProgress(0);
+              setPlaylist(youtube_id);
+            }
+          })
+          .catch(() => {});
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };

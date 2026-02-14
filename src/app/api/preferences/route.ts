@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/auth";
 
 async function getSessionUser() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionId) return null;
+  const userId = await getSessionUserId();
+  if (!userId) return null;
 
   const supabase = getSupabase();
   const { data: user } = await supabase
     .from("users")
     .select("id, preferences")
-    .eq("id", sessionId)
+    .eq("id", userId)
     .single();
 
   return user;

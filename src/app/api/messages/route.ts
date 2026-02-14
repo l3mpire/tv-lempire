@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSupabase } from "@/lib/supabase";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/auth";
 import { postToSlack } from "@/lib/slack";
 const MAX_CONTENT_LENGTH = 500;
 
 export async function GET(request: NextRequest) {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!session || session === "authenticated") {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -55,14 +53,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const sessionValue = cookieStore.get(SESSION_COOKIE)?.value;
-
-  if (!sessionValue || sessionValue === "authenticated") {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const userId = sessionValue;
 
   let body: { content?: string; isBreakingNews?: boolean };
   try {
@@ -124,14 +118,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const cookieStore = await cookies();
-  const sessionValue = cookieStore.get(SESSION_COOKIE)?.value;
-
-  if (!sessionValue || sessionValue === "authenticated") {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const userId = sessionValue;
 
   let body: { messageId?: string };
   try {

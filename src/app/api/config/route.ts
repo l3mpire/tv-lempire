@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireSession } from "@/lib/auth";
 import type { ProductConfig, Config } from "@/lib/types";
 
 const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunter"] as const;
 
 // Default values (used if Supabase is empty or unreachable)
 const DEFAULT_CONFIG: Config = {
-  lemlist: { arr: 37649178, growth: 0.10, monthGrowth: 297574, updatedAt: Date.now() },
-  lemwarm: { arr: 1675328, growth: 0.10, monthGrowth: 13570, updatedAt: Date.now() },
-  lemcal: { arr: 71508, growth: 0.10, monthGrowth: 3, updatedAt: Date.now() },
-  claap: { arr: 2148558, growth: 0.10, monthGrowth: 11345, updatedAt: Date.now() },
-  taplio: { arr: 3261632, growth: -0.06, monthGrowth: -17121, updatedAt: Date.now() },
-  tweethunter: { arr: 1162042, growth: -0.11, monthGrowth: -11936, updatedAt: Date.now() },
+  lemlist: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
+  lemwarm: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
+  lemcal: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
+  claap: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
+  taplio: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
+  tweethunter: { arr: 0, growth: 0, monthGrowth: 0, updatedAt: 0 },
 };
 
 export async function GET() {
+  const user = await requireSession();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { data, error } = await getSupabase()
       .from("products")

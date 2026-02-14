@@ -473,6 +473,7 @@ export default function AdminPage() {
     setRefreshResult(null);
     try {
       const res = await fetch("/api/cron/refresh-holistics", {
+        method: "POST",
         credentials: "include",
       });
       const data = await res.json();
