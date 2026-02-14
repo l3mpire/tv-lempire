@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       JSON.stringify({
         event: "login_attempt",
         success: false,
+        reason: "user_not_found",
         email,
         ip,
         timestamp: new Date().toISOString(),
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       JSON.stringify({
         event: "login_attempt",
         success: false,
+        reason: "wrong_password",
         email,
         ip,
         timestamp: new Date().toISOString(),
