@@ -102,6 +102,36 @@ function formatGrowthLine(monthGrowth: number, baseARR: number): string {
   return `(${momSign}${mom.toFixed(1)}% MoM · ${yoySign}${yoy.toFixed(0)}% YoY)`;
 }
 
+function formatMilestoneCountdown(totalARR: number, totalDollarPerSecond: number): string | null {
+  if (totalDollarPerSecond <= 0) return null;
+  const nextMillion = Math.ceil(totalARR / 1_000_000) * 1_000_000;
+  if (nextMillion <= totalARR) return null;
+  const remaining = nextMillion - totalARR;
+  const secondsToMilestone = remaining / totalDollarPerSecond;
+  const target = `$${nextMillion / 1_000_000}M`;
+
+  const THREE_DAYS = 3 * 24 * 3600;
+  if (secondsToMilestone <= THREE_DAYS) {
+    const totalSec = Math.floor(secondsToMilestone);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0 || days > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}min`);
+    return `${target} in ~${parts.join(" ")} (est.)`;
+  }
+
+  const estimatedDate = new Date(Date.now() + secondsToMilestone * 1000);
+  const formatted = estimatedDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${target} ~ ${formatted} (est.)`;
+}
+
 function growthColor(value: number): string {
   if (value > 0) return "var(--accent)";
   if (value < 0) return "var(--negative)";
@@ -930,6 +960,12 @@ function ARRDynamic({
   const totalBaseARR = PRODUCTS.reduce((sum, p) => sum + config[p].arr, 0);
   const totalMonthGrowth = PRODUCTS.reduce((sum, p) => sum + config[p].monthGrowth, 0);
 
+  const totalDollarPerSecond = PRODUCTS.reduce(
+    (sum, p) => sum + (config[p].arr * config[p].growth) / (365.25 * 24 * 3600),
+    0
+  );
+  const milestoneText = formatMilestoneCountdown(totalARR, totalDollarPerSecond);
+
   useMilestoneSound(totalARR, milestoneSound);
 
   return (
@@ -987,6 +1023,12 @@ function ARRDynamic({
                 >
                   {formatMonthGrowth(totalMonthGrowth)} {formatGrowthLine(totalMonthGrowth, totalBaseARR)}
                 </div>
+
+                {milestoneText && (
+                  <div className="total-milestone">
+                    {milestoneText}
+                  </div>
+                )}
               </div>
             </div>
           </div>

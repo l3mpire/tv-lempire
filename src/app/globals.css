@@ -361,6 +361,16 @@ body {
   animation: fadeInUp 1s ease-out 1s both;
 }
 
+.total-milestone {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: 0.95rem;
+  margin-top: 0.75rem;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.4);
+  animation: fadeInUp 1s ease-out 1.2s both;
+}
+
 /* === STATUS BAR === */
 .dash-status-bar {
   position: fixed;
