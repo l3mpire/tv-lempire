@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const MILESTONE_STEP = 10_000;
+const MILESTONE_STEP = 50_000;
 
 function getMilestone(arr: number): number {
   return Math.floor(arr / MILESTONE_STEP);
@@ -48,7 +48,7 @@ function playChaChing() {
   hp.frequency.value = 6000;
   const ng2 = ctx.createGain();
   ng2.gain.setValueAtTime(0, t);
-  ng2.gain.setValueAtTime(0.4, c);
+  ng2.gain.setValueAtTime(0.2, c);
   ng2.gain.exponentialRampToValueAtTime(0.001, c + 0.12);
   noise2.connect(hp).connect(ng2).connect(ctx.destination);
   noise2.start(t);
@@ -62,7 +62,7 @@ function playChaChing() {
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq, c);
     g.gain.setValueAtTime(0, t);
-    g.gain.setValueAtTime(0.35, c);
+    g.gain.setValueAtTime(0.175, c);
     g.gain.exponentialRampToValueAtTime(0.001, c + 2.4);
     osc.connect(g).connect(ctx.destination);
     osc.start(t);
@@ -77,7 +77,7 @@ function playChaChing() {
     osc.type = "triangle";
     osc.frequency.setValueAtTime(freq, c);
     g.gain.setValueAtTime(0, t);
-    g.gain.setValueAtTime(0.15 / (i + 1), c);
+    g.gain.setValueAtTime(0.075 / (i + 1), c);
     g.gain.exponentialRampToValueAtTime(0.001, c + 1.6);
     osc.connect(g).connect(ctx.destination);
     osc.start(t);
