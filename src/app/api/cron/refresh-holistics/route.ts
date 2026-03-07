@@ -92,12 +92,12 @@ async function refreshHolistics() {
       throw new Error("Invalid response format");
     }
 
-    // Fetch last pages to get recent data
+    // Fetch all pages (report has future months with $0, so we can't just take the last pages)
     const allValues = [...result.values];
     const totalPages = result.paginated.num_pages;
-    console.log(`[Cron] Fetching last pages (${totalPages} total)...`);
+    console.log(`[Cron] Fetching all ${totalPages} pages...`);
 
-    for (let page = Math.max(2, totalPages - 2); page <= totalPages; page++) {
+    for (let page = 2; page <= totalPages; page++) {
       const pageRes = await fetch(
         `${HOLISTICS_HOST}/queries/get_query_results.json?job_id=${job_id}&_page=${page}`,
         { headers: { "X-Holistics-Key": HOLISTICS_API_KEY } }
