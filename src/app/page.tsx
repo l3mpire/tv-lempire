@@ -20,7 +20,7 @@ const PRODUCTS = ["lemlist", "lemwarm", "lemcal", "claap", "taplio", "tweethunte
 type ProductKey = (typeof PRODUCTS)[number];
 
 function computeARR(config: ProductConfig | null, now: number): number | null {
-  if (!config || config.arr === 0 || config.updatedAt === 0) return null;
+  if (!config || config.updatedAt === 0) return null;
   const dollarPerSecond = (config.arr * config.growth) / (365.25 * 24 * 3600);
   const elapsed = (now - config.updatedAt) / 1000;
   return config.arr + elapsed * dollarPerSecond;

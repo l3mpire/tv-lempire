@@ -480,8 +480,11 @@ export default function AdminPage() {
       if (!res.ok) {
         setRefreshResult({ type: "error", message: data.error || "Sync failed" });
       } else if (data.config) {
-        setConfig(data.config as Config);
-        setRefreshResult({ type: "success", message: `Synced ${data.updated ?? ""} products from Holistics` });
+        await fetchConfig();
+        const msg = data.skipped?.length
+          ? `Synced ${data.updated ?? 0} products, skipped ${data.skipped.length} (returned $0: ${data.skipped.join(", ")})`
+          : `Synced ${data.updated ?? ""} products from Holistics`;
+        setRefreshResult({ type: data.skipped?.length ? "error" : "success", message: msg });
       } else {
         await fetchConfig();
         setRefreshResult({ type: "success", message: "Sync completed" });

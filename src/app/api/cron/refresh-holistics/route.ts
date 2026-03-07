@@ -117,11 +117,27 @@ async function refreshHolistics() {
       arrByMonth.get(month)!.set(product, parseFloat(arrStr));
     }
 
+    // Find the latest month with meaningful data (at least one product with ARR > 0,
+    // excluding lemwarm which can have residual values in future months)
     const months = Array.from(arrByMonth.keys()).sort();
-    const currentMonth = months[months.length - 1];
-    const previousMonth = months[months.length - 2];
+    let currentMonth: string | undefined;
+    for (let i = months.length - 1; i >= 0; i--) {
+      const monthData = arrByMonth.get(months[i])!;
+      const hasRealData = Array.from(monthData.entries()).some(
+        ([product, arr]) => arr > 0 && product !== "lemwarm"
+      );
+      if (hasRealData) {
+        currentMonth = months[i];
+        break;
+      }
+    }
+    if (!currentMonth) {
+      throw new Error("No month with meaningful ARR data found in Holistics report");
+    }
+    const currentIdx = months.indexOf(currentMonth);
+    const previousMonth = currentIdx > 0 ? months[currentIdx - 1] : undefined;
     const currentData = arrByMonth.get(currentMonth);
-    const previousData = arrByMonth.get(previousMonth);
+    const previousData = previousMonth ? arrByMonth.get(previousMonth) : undefined;
 
     if (!currentData) {
       throw new Error("No current month data found");
@@ -132,10 +148,29 @@ async function refreshHolistics() {
     // Build config for each product
     const now = Date.now();
     const items: { operation: "upsert"; key: string; value: ProductConfig }[] = [];
+    const skipped: string[] = [];
+
+    // Fetch existing ARR values from Supabase to protect against overwriting with 0
+    const { data: existingRows } = await getSupabase()
+      .from("products")
+      .select("id, arr");
+    const existingARR = new Map<string, number>();
+    for (const row of existingRows ?? []) {
+      existingARR.set(row.id, row.arr);
+    }
 
     for (const product of PRODUCTS) {
       const arr = currentData.get(product) || 0;
       const prevArr = previousData?.get(product) || 0;
+      const existing = existingARR.get(product) ?? 0;
+
+      // Never overwrite a valid ARR with 0
+      if (arr === 0 && existing > 0) {
+        console.log(`[Cron] ${product}: Holistics returned $0 but existing ARR is $${existing.toFixed(0)} — skipping`);
+        skipped.push(product);
+        continue;
+      }
+
       const monthGrowth = arr - prevArr;
 
       // Calculate annual growth rate from month-over-month change
@@ -160,6 +195,19 @@ async function refreshHolistics() {
       console.log(`[Cron] ${product}: $${arr.toFixed(0)} (growth: ${(growth * 100).toFixed(1)}%)`);
     }
 
+    if (items.length === 0) {
+      const msg = "Holistics returned $0 for all products — no data was saved";
+      console.warn(`[Cron] ${msg}`);
+      return NextResponse.json({
+        success: false,
+        error: msg,
+        currentMonth,
+        previousMonth,
+        skipped,
+        timestamp: new Date().toISOString(),
+      }, { status: 422 });
+    }
+
     // Store in Supabase
     console.log("[Cron] Saving to Supabase...");
     const rows = items.map((item) => ({
@@ -180,7 +228,7 @@ async function refreshHolistics() {
 
     console.log("[Cron] Holistics data refresh completed successfully");
 
-    // Build full config to return
+    // Build full config to return (include existing values for skipped products)
     const freshConfig: Record<string, ProductConfig> = {};
     for (const item of items) {
       freshConfig[item.key] = item.value;
@@ -188,10 +236,14 @@ async function refreshHolistics() {
 
     return NextResponse.json({
       success: true,
-      message: "Holistics data saved to Supabase",
+      message: skipped.length > 0
+        ? `Synced ${items.length} products, skipped ${skipped.length} (Holistics returned $0)`
+        : "Holistics data saved to Supabase",
+      updated: items.length,
       currentMonth,
       previousMonth,
       products: items.map((i) => ({ key: i.key, arr: i.value.arr, monthGrowth: i.value.monthGrowth })),
+      skipped,
       config: freshConfig,
       timestamp: new Date().toISOString(),
     });
